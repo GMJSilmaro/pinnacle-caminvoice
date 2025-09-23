@@ -1,0 +1,47 @@
+.root {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  gap: 1.25rem;
+
+  @media (max-width: 768px) {
+    grid-template-rows: minmax(0, 1fr);
+  }
+}
+
+.statsCardContainer {
+  grid-column: span 2 / span 9;
+
+  @media (max-width: 768px) {
+    grid-column: span 9 / span 9;
+  }
+}
+
+.insightContainer {
+  grid-column: span 3 / span 9;
+  grid-row: span 3 / span 4;
+
+  @media (max-width: 768px) {
+    grid-column: span 9 / span 9;
+  }
+}
+
+.uniqueVisitorContainer {
+  grid-column: span 3 / span 6;
+  grid-row: span 3 / span 4;
+
+  @media (max-width: 768px) {
+    grid-column: span 9 / span 9;
+  }
+}
+
+.pageViewContainer {
+  grid-column: span 3 / span 6;
+  grid-row: span 3 / span 4;
+
+  @media (max-width: 768px) {
+    grid-column: span 9 / span 9;
+  }
+}
+
+

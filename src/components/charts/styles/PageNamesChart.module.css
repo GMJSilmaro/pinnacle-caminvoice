@@ -1,0 +1,68 @@
+.list {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background-color: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6));
+  border-radius: var(--mantine-radius-md);
+  border: 1px solid light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-5));
+  transition: all 150ms ease;
+}
+
+.tab {
+  position: relative;
+  display: block;
+  padding: 0.5rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-decoration: none;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-gray-4));
+  border-radius: var(--mantine-radius-md);
+  transition: all 150ms ease;
+}
+
+.tab:hover {
+  color: light-dark(var(--mantine-color-gray-9), var(--mantine-color-gray-1));
+  background-color: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-5));
+}
+
+.tab[data-active] {
+  color: var(--mantine-color-white);
+  z-index: 1;
+}
+
+.tab[data-active]:hover {
+  color: var(--mantine-color-white);
+}
+
+.indicator {
+  background: linear-gradient(
+    90deg,
+    var(--mantine-color-orange-6) 0%,
+    var(--mantine-color-yellow-4) 100%
+  );
+  border-radius: var(--mantine-radius-md);
+}
+
+.chartWrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.chartLabel {
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: -0.025rem;
+  color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-gray-4));
+  transition: color 150ms ease;
+}
+
+.chartWrapper:hover .chartLabel {
+  color: light-dark(var(--mantine-color-gray-8), var(--mantine-color-gray-2));
+}

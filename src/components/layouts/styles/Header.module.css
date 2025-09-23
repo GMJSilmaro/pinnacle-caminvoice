@@ -1,0 +1,21 @@
+.root {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--mantine-spacing-md);
+}
+
+.wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 100%;
+}
+
+.noti {
+  color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-gray-4));
+}
+
+.profileName {
+  color: light-dark(var(--mantine-color-gray-9), var(--mantine-color-gray-1));
+}

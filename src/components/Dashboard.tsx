@@ -1,0 +1,69 @@
+"use client"
+import { Box, Stack } from "@mantine/core"
+import { DirectInbox, Mouse, User } from "iconsax-react"
+
+import PageViewChart from "./charts/PageViewChart"
+import UniqueVisitorChart from "./charts/UniqueVisitorChart"
+import Insights from "./Insights"
+import StatsCard from "./StatsCard"
+// import Breadcrumbs from "./navigation/Breadcrumbs"
+import classes from "./styles/Dashboard.module.css"
+
+const activeVisitorColor =
+  "linear-gradient(90deg, var(--mantine-color-orange-6) 0%, var(--mantine-color-yellow-4) 100%)"
+
+const clickEventColor =
+  "linear-gradient(180deg, rgba(8,196,134,1) 0%, rgba(8,196,134,0.7833727240896359) 100%)"
+
+const formSubmissionColor =
+  "linear-gradient(180deg, rgba(59,146,248,1) 0%, rgba(59,146,248,0.774969362745098) 100%)"
+
+export default function Dashboard() {
+  return (
+    <Stack w="100%" h="100%" gap="md">
+      {/* <Breadcrumbs showHome={false} /> */}
+      <Box w="100%" h="100%" className={classes.root}>
+        <Box className={classes.statsCardContainer}>
+        <StatsCard
+          color={activeVisitorColor}
+          icon={User}
+          label="Active Visitor"
+          value={9}
+          link=""
+          borderColor="var(--mantine-color-orange-2)"
+        />
+      </Box>
+      <Box className={classes.statsCardContainer}>
+        <StatsCard
+          color={clickEventColor}
+          icon={Mouse}
+          label="Click Events"
+          value={2231}
+          borderColor="var(--mantine-color-green-2)"
+          link=""
+        />
+      </Box>
+      <Box className={classes.statsCardContainer}>
+        <StatsCard
+          color={formSubmissionColor}
+          icon={DirectInbox}
+          label="Form Submissions"
+          value={2}
+          borderColor="var(--mantine-color-blue-2)"
+          link=""
+        />
+      </Box>
+      <Box className={classes.insightContainer}>
+        <Insights />
+      </Box>
+      <Box className={classes.uniqueVisitorContainer}>
+        <UniqueVisitorChart />
+      </Box>
+      <Box className={classes.pageViewContainer}>
+        <PageViewChart />
+      </Box>
+
+      </Box>
+    </Stack>
+  )
+}
