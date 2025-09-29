@@ -22,7 +22,7 @@ import {
 } from '@tabler/icons-react'
 import { useEffect, useState } from 'react'
 import { useAuth } from '../../../hooks/useAuth'
-import ProviderSetup from '../../../components/admin/ProviderSetup'
+import ProviderSetup from '../../../components/admin/ProviderSetup.client'
 import TenantManagement from '../../../components/admin/TenantManagement'
 import PageLayout from '../../../components/layouts/PageLayout'
 import StatsCard from '../../../components/ui/StatsCard'

@@ -32,7 +32,7 @@ import {
 import { useState, useEffect } from 'react'
 import { useForm } from '@mantine/form'
 import { showNotification } from '../../utils/notifications'
-import { loadProviderConfig, saveProviderConfig, configureRedirectUrls as configureRedirectUrlsAction, getOAuthUrl, exchangeAuthToken, testConnection as testConnectionAction } from '@/app/provider/actions'
+import { loadProviderConfig, saveProviderConfig, configureRedirectUrls as configureRedirectUrlsAction, getProviderAccessToken, testConnection as testConnectionAction } from '@/app/provider/actions'
 
 interface ProviderSetupProps {
   isSetup?: boolean
@@ -50,7 +50,9 @@ interface BusinessInfo {
 interface OAuthResponse {
   access_token?: string;
   refresh_token?: string;
-  business_info?: BusinessInfo;
+  expires_in?: number;
+  scope?: string;
+  token_type?: string;
 }
 
 export default function ProviderSetup({ isSetup = false, onSetupComplete }: ProviderSetupProps) {
@@ -184,7 +186,7 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
   const testConnection = async () => {
     if (!isOAuthAuthorized) {
       showNotification.error(
-        'Please complete OAuth authorization first by clicking "Authorize with CamInvoice".',
+        'Please complete OAuth authorization first by clicking "Get Access Token".',
         'Authorization Required'
       )
       return
@@ -213,62 +215,20 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
 
   const handleOAuthAuthorization = async () => {
     try {
-      // Get OAuth authorization URL via server action
-      const { authUrl, state } = await getOAuthUrl()
-
-      // Prepare listener BEFORE opening popup to avoid race conditions
-      const here = window.location.origin
-      const allowedOrigins = new Set<string>([here])
-      if (here.includes('://localhost:')) allowedOrigins.add(here.replace('://localhost:', '://127.0.0.1:'))
-      if (here.includes('://127.0.0.1:')) allowedOrigins.add(here.replace('://127.0.0.1:', '://localhost:'))
-
-      const authTokenPromise = new Promise<{ authToken: string; state?: string } | null>((resolve) => {
-        const handler = (event: MessageEvent) => {
-          try {
-            if (!allowedOrigins.has(event.origin)) return
-            const data = event.data as any
-            if (data?.source === 'caminvoice-oauth' && typeof data?.authToken === 'string') {
-              window.removeEventListener('message', handler)
-              resolve({ authToken: data.authToken, state: data.state })
-            }
-          } catch {}
-        }
-        window.addEventListener('message', handler)
-        // Fallback timeout (20s)
-        setTimeout(() => {
-          window.removeEventListener('message', handler)
-          resolve(null)
-        }, 20000)
-      })
-
-      // Open OAuth URL in new window (after listener is attached)
-      const authWindow = window.open(authUrl, '_blank', 'width=600,height=700')
-
-      const result = await authTokenPromise
-
-      // Development fallback if no message received
-      const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname)
-      const tokenToUse = result?.authToken || (isLocal ? `sim_auth_${Date.now()}` : '')
-      if (!tokenToUse) {
-        authWindow?.close()
-        throw new Error('Authorization was not completed. No authToken received.')
-      }
-
-      // Exchange authToken for tokens
-      const tokenData = await exchangeAuthToken({ authToken: tokenToUse, state: result?.state || state })
+      // Use OAuth2 Client Credentials flow to get access token directly
+      const tokenData = await getProviderAccessToken()
 
       setIsOAuthAuthorized(true)
       setOauthResponse(tokenData)
       showNotification.success(
-        'OAuth authorization completed successfully. You can now test the connection.',
+        'OAuth authorization completed successfully. Access token obtained.',
         'Authorization Complete'
       )
-      authWindow?.close()
 
     } catch (error) {
       console.error('OAuth authorization failed:', error)
       showNotification.error(
-        error instanceof Error ? error.message : 'Failed to start OAuth authorization',
+        error instanceof Error ? error.message : 'Failed to get access token',
         'Authorization Failed'
       )
     }
@@ -541,25 +501,22 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
               <Card withBorder bg="gray.0">
                 <Stack gap="sm">
                   <Group justify="space-between">
-                    <Text fw={500} size="sm">OAuth Authorization Link:</Text>
+                    <Text fw={500} size="sm">Get Access Token:</Text>
                     <Button
                       size="sm"
                       variant={isOAuthAuthorized ? "filled" : "outline"}
                       color={isOAuthAuthorized ? "green" : "blue"}
                       onClick={handleOAuthAuthorization}
-                      disabled={!form.values.clientId || !form.values.redirectUrls[0] || !isRedirectConfigured}
+                      disabled={!form.values.clientId || !form.values.clientSecret || !isRedirectConfigured}
                     >
-                      {isOAuthAuthorized ? "✓ Authorized" : "Authorize with CamInvoice"}
+                      {isOAuthAuthorized ? "✓ Token Obtained" : "Get Access Token"}
                     </Button>
                   </Group>
                   <Divider />
-                  <Code block>
-                    {`${form.values.baseUrl}/connect?client_id=${form.values.clientId}&redirect_url=${encodeURIComponent(form.values.redirectUrls[0] || '')}&state=provider_setup`}
-                  </Code>
                   <Text size="xs" c={isOAuthAuthorized ? "green" : "dimmed"}>
                     {isOAuthAuthorized
-                      ? "✓ OAuth authorization completed. You can now test the connection."
-                      : "Click 'Authorize with CamInvoice' to complete OAuth flow and get access/refresh tokens."
+                      ? "✓ Access token obtained successfully. You can now test the connection."
+                      : "Click 'Get Access Token' to obtain access token using OAuth2 Client Credentials flow."
                     }
                   </Text>
                 </Stack>
@@ -567,13 +524,12 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
 
               <Card withBorder bg="green.0">
                 <Stack gap="sm">
-                  <Text fw={500} size="sm">CamInvoice OAuth2 Flow:</Text>
+                  <Text fw={500} size="sm">CamInvoice OAuth2 Client Credentials Flow:</Text>
                   <Divider />
                   <Text size="sm">
                     1. <strong>Configure Redirect URLs</strong> → POST /api/v1/configure/configure-redirect-url<br />
-                    2. <strong>Generate OAuth Link</strong> → User clicks link → Redirected to CamInvoice<br />
-                    3. <strong>User Authorization</strong> → User authorizes → Redirected back with authToken<br />
-                    4. <strong>Token Exchange</strong> → POST /api/v1/auth/authorize/connect → Get access/refresh tokens
+                    2. <strong>Get Access Token</strong> → POST /oauth2/token with client_credentials grant<br />
+                    3. <strong>Test Connection</strong> → Verify API connectivity with obtained token
                   </Text>
                 </Stack>
               </Card>
@@ -581,7 +537,7 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
               {oauthResponse && (
                 <Card withBorder bg="blue.0">
                   <Stack gap="sm">
-                    <Text fw={500} size="sm">OAuth Response Data:</Text>
+                    <Text fw={500} size="sm">Access Token Information:</Text>
                     <Divider />
 
                     <Group justify="space-between">
@@ -598,32 +554,14 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
                         : <Text size="xs" c="dimmed">N/A</Text>}
                     </Group>
 
-                    <Text fw={500} size="sm" mt="md">Business Information:</Text>
-                    <Divider />
-
                     <Group justify="space-between">
-                      <Text size="sm" fw={500}>Endpoint ID:</Text>
-                      <Text size="sm" ff="monospace">{oauthResponse?.business_info?.endpoint_id ?? '—'}</Text>
+                      <Text size="sm" fw={500}>Expires In:</Text>
+                      <Text size="sm" ff="monospace">{oauthResponse?.expires_in ? `${oauthResponse.expires_in}s` : '—'}</Text>
                     </Group>
 
                     <Group justify="space-between">
-                      <Text size="sm" fw={500}>Company (EN):</Text>
-                      <Text size="sm">{oauthResponse?.business_info?.company_name_en ?? '—'}</Text>
-                    </Group>
-
-                    <Group justify="space-between">
-                      <Text size="sm" fw={500}>Company (KH):</Text>
-                      <Text size="sm">{oauthResponse?.business_info?.company_name_kh ?? '—'}</Text>
-                    </Group>
-
-                    <Group justify="space-between">
-                      <Text size="sm" fw={500}>TIN:</Text>
-                      <Text size="sm" ff="monospace">{oauthResponse?.business_info?.tin ?? '—'}</Text>
-                    </Group>
-
-                    <Group justify="space-between">
-                      <Text size="sm" fw={500}>MOC ID:</Text>
-                      <Text size="sm" ff="monospace">{oauthResponse?.business_info?.moc_id ?? '—'}</Text>
+                      <Text size="sm" fw={500}>Token Type:</Text>
+                      <Text size="sm" ff="monospace">{oauthResponse?.token_type ?? '—'}</Text>
                     </Group>
                   </Stack>
                 </Card>
