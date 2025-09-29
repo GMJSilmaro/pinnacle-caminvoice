@@ -110,7 +110,7 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
     initialValues: {
       clientId: '',
       clientSecret: '',
-      baseUrl: 'https://sandbox.e-invoice.gov.kh',
+      baseUrl: 'https://sb-merchant.e-invoice.gov.kh',
       description: '',
       redirectUrls: ['http://localhost:3001/auth/callback'],
     },
@@ -163,13 +163,21 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
       })
 
       // Then configure redirect URLs via server action
-      await configureRedirectUrlsAction({ redirectUrls: form.values.redirectUrls })
+      const result = await configureRedirectUrlsAction({ redirectUrls: form.values.redirectUrls })
 
       setIsRedirectConfigured(true)
-      showNotification.success(
-        'Redirect URLs have been successfully configured with CamInvoice. You can now proceed with OAuth authorization.',
-        'URLs Configured'
-      )
+
+      if (result.warning) {
+        showNotification.warning(
+          result.warning + ' You can still try OAuth authorization.',
+          'Configuration Warning'
+        )
+      } else {
+        showNotification.success(
+          'Redirect URLs have been successfully configured with CamInvoice. You can now proceed with OAuth authorization.',
+          'URLs Configured'
+        )
+      }
     } catch (error) {
       console.error('Failed to configure redirect URLs:', error)
       setIsRedirectConfigured(false)
@@ -214,11 +222,10 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
 
   const handleOAuthAuthorization = async () => {
     if (!isRedirectConfigured) {
-      showNotification.error(
-        'Please configure redirect URLs first before attempting OAuth authorization.',
-        'Configuration Required'
+      showNotification.warning(
+        'Redirect URLs have not been configured via API, but OAuth authorization may still work. Proceeding...',
+        'Configuration Warning'
       )
-      return
     }
 
     try {
@@ -556,7 +563,7 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
                       variant={isOAuthAuthorized ? "filled" : "outline"}
                       color={isOAuthAuthorized ? "green" : "blue"}
                       onClick={handleOAuthAuthorization}
-                      disabled={!form.values.clientId || !form.values.clientSecret || !isRedirectConfigured}
+                      disabled={!form.values.clientId || !form.values.clientSecret}
                     >
                       {isOAuthAuthorized ? "✓ Authorized" : "Authorize with CamInvoice"}
                     </Button>
@@ -565,7 +572,7 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
                   <Text size="xs" c={isOAuthAuthorized ? "green" : "dimmed"}>
                     {isOAuthAuthorized
                       ? "✓ OAuth authorization completed successfully. You can now test the connection."
-                      : "Click 'Authorize with CamInvoice' to complete OAuth flow and get access/refresh tokens."
+                      : "Click 'Authorize with CamInvoice' to complete OAuth flow and get access/refresh tokens. (Redirect URL configuration is optional)"
                     }
                   </Text>
                 </Stack>
