@@ -7,7 +7,7 @@ const activities = [
   {
     id: 1,
     type: "Link clicked",
-    createdAt: new Date(),
+    createdAt: new Date('2024-01-15T10:00:00Z'), // Static date to prevent hydration mismatch
     pages: [
       {
         id: 1,
@@ -18,7 +18,7 @@ const activities = [
   {
     id: 2,
     type: "Link clicked",
-    createdAt: new Date(),
+    createdAt: new Date('2024-01-15T08:00:00Z'), // Static date to prevent hydration mismatch
     pages: [
       {
         id: 1,

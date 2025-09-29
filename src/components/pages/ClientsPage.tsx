@@ -1,37 +1,63 @@
+'use client'
+
 import {
   Box,
   Button,
   Card,
   Flex,
-  Grid,
   Group,
-  Paper,
   Stack,
   Text,
-  Title,
   Badge,
   ActionIcon,
-  Table,
   Avatar,
-  TextInput,
-  Select,
+  Paper,
 } from "@mantine/core"
 import {
   IconPlus,
-  IconSearch,
   IconEye,
   IconEdit,
   IconTrash,
   IconMail,
   IconPhone,
-  IconFilter
+  IconFilter,
+  IconShieldCheck,
+  IconShieldX,
+  IconClock,
+  IconQuestionMark,
+  IconRefresh,
 } from "@tabler/icons-react"
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { type ColumnDef } from '@tanstack/react-table'
+import { showNotification } from '../../utils/notifications'
+import PageLayout from "../layouts/PageLayout"
+import PageSkeleton from "../skeletons/PageSkeleton"
+import { DataTable } from '../tables/DataTable'
 // import Breadcrumbs from "../navigation/Breadcrumbs"
+
+// Customer type definition
+interface Customer {
+  id: string
+  name: string
+  email: string
+  phone: string
+  status: string
+  projects: number
+  revenue: string
+  lastContact: string
+  avatar: string
+  camInvId?: string // CamInv Endpoint ID (e.g., KHUID00001234)
+  camInvStatus: 'registered' | 'not_registered' | 'pending' | 'unknown'
+  companyNameEn?: string
+  companyNameKh?: string
+  tin?: string // Tax Identification Number
+}
 
 // Mock data for demonstration
 const clientStats = [
   {
-    title: "Total Clients",
+    title: "Total Customers",
     value: "156",
     icon: IconPlus,
     color: "blue",
@@ -60,7 +86,7 @@ const clientStats = [
   },
 ]
 
-const clients = [
+const clients: Customer[] = [
   {
     id: "1",
     name: "Acme Corporation",
@@ -71,6 +97,11 @@ const clients = [
     revenue: "$12,500",
     lastContact: "2024-01-15",
     avatar: "AC",
+    camInvId: "KHUID00001234",
+    camInvStatus: "registered",
+    companyNameEn: "Acme Corporation Ltd",
+    companyNameKh: "អេកមី កម្ពុយទ័រ",
+    tin: "K001-901234567",
   },
   {
     id: "2",
@@ -82,6 +113,11 @@ const clients = [
     revenue: "$8,900",
     lastContact: "2024-01-14",
     avatar: "TS",
+    camInvId: "KHUID00005678",
+    camInvStatus: "registered",
+    companyNameEn: "Tech Solutions Inc",
+    companyNameKh: "តេក សូលុយសិន",
+    tin: "K001-905678901",
   },
   {
     id: "3",
@@ -93,6 +129,7 @@ const clients = [
     revenue: "$3,200",
     lastContact: "2024-01-10",
     avatar: "DS",
+    camInvStatus: "not_registered",
   },
   {
     id: "4",
@@ -104,6 +141,7 @@ const clients = [
     revenue: "$18,750",
     lastContact: "2024-01-16",
     avatar: "MP",
+    camInvStatus: "pending",
   },
   {
     id: "5",
@@ -115,6 +153,7 @@ const clients = [
     revenue: "$0",
     lastContact: "2024-01-12",
     avatar: "GE",
+    camInvStatus: "unknown",
   },
 ]
 
@@ -131,161 +170,293 @@ function getStatusColor(status: string) {
   }
 }
 
-export default function ClientsPage() {
-  return (
-    <Stack gap="xl">
-      {/* <Breadcrumbs /> */}
-      {/* Header */}
-      <Flex justify="space-between" align="center">
+function getCamInvStatusColor(status: string) {
+  switch (status) {
+    case "registered":
+      return "green"
+    case "not_registered":
+      return "red"
+    case "pending":
+      return "yellow"
+    case "unknown":
+      return "gray"
+    default:
+      return "gray"
+  }
+}
+
+function getCamInvStatusLabel(status: string) {
+  switch (status) {
+    case "registered":
+      return "CamInv Registered"
+    case "not_registered":
+      return "Not Registered"
+    case "pending":
+      return "Registration Pending"
+    case "unknown":
+      return "Status Unknown"
+    default:
+      return "Unknown"
+  }
+}
+
+// Column definitions for TanStack Table
+const columns: ColumnDef<Customer>[] = [
+  {
+    accessorKey: 'name',
+    header: 'Customer',
+    cell: ({ row }) => (
+      <Group gap="sm">
+        <Avatar size="sm" radius="xl">
+          {row.original.avatar}
+        </Avatar>
         <Box>
-          <Title order={2}>Clients</Title>
-          <Text c="dimmed" size="sm">
-            Manage your client relationships and contacts
-          </Text>
+          <Text fw={500}>{row.original.name}</Text>
+          <Text size="xs" c="dimmed">ID: {row.original.id}</Text>
         </Box>
+      </Group>
+    ),
+  },
+  {
+    accessorKey: 'contact',
+    header: 'Contact',
+    cell: ({ row }) => (
+      <Stack gap={2}>
+        <Group gap="xs">
+          <IconMail size={12} />
+          <Text size="sm">{row.original.email}</Text>
+        </Group>
+        <Group gap="xs">
+          <IconPhone size={12} />
+          <Text size="sm">{row.original.phone}</Text>
+        </Group>
+      </Stack>
+    ),
+  },
+  {
+    accessorKey: 'status',
+    header: 'Status',
+    cell: ({ row }) => (
+      <Badge color={getStatusColor(row.original.status)} variant="light">
+        {row.original.status}
+      </Badge>
+    ),
+  },
+  {
+    accessorKey: 'camInvStatus',
+    header: 'CamInv Status',
+    cell: ({ row }) => {
+      const status = row.original.camInvStatus
+      const getIcon = () => {
+        switch (status) {
+          case 'registered':
+            return <IconShieldCheck size={14} />
+          case 'not_registered':
+            return <IconShieldX size={14} />
+          case 'pending':
+            return <IconClock size={14} />
+          default:
+            return <IconQuestionMark size={14} />
+        }
+      }
+
+      return (
+        <Group gap="xs">
+          <Badge
+            color={getCamInvStatusColor(status)}
+            variant="light"
+            leftSection={getIcon()}
+          >
+            {getCamInvStatusLabel(status)}
+          </Badge>
+          {row.original.camInvId && (
+            <Text size="xs" c="dimmed">
+              {row.original.camInvId}
+            </Text>
+          )}
+        </Group>
+      )
+    },
+  },
+  {
+    accessorKey: 'projects',
+    header: 'Projects',
+    cell: ({ row }) => (
+      <Text fw={500}>{row.original.projects}</Text>
+    ),
+  },
+  {
+    accessorKey: 'revenue',
+    header: 'Revenue',
+    cell: ({ row }) => (
+      <Text fw={500}>{row.original.revenue}</Text>
+    ),
+  },
+  {
+    id: 'actions',
+    header: 'Actions',
+    cell: ({ row }) => {
+      const router = useRouter()
+      return (
+        <Group gap="xs">
+          <ActionIcon
+            variant="subtle"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation()
+              router.push(`/customers/${row.original.id}`)
+            }}
+          >
+            <IconEye size={16} />
+          </ActionIcon>
+          <ActionIcon
+            variant="subtle"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation()
+              router.push(`/customers/${row.original.id}/edit`)
+            }}
+          >
+            <IconEdit size={16} />
+          </ActionIcon>
+          <ActionIcon
+            variant="subtle"
+            size="sm"
+            color="blue"
+            onClick={(e) => {
+              e.stopPropagation()
+              // TODO: Implement CamInv registration check
+              console.log('Check CamInv registration for:', row.original.name)
+              showNotification.info(`Checking CamInv registration for ${row.original.name}...`)
+            }}
+          >
+            <IconRefresh size={16} />
+          </ActionIcon>
+          <ActionIcon
+            variant="subtle"
+            size="sm"
+            color="red"
+            onClick={(e) => {
+              e.stopPropagation()
+              // TODO: Implement delete functionality
+              console.log('Delete customer:', row.original.id)
+            }}
+          >
+            <IconTrash size={16} />
+          </ActionIcon>
+        </Group>
+      )
+    },
+  },
+]
+
+export default function ClientsPage() {
+  const router = useRouter()
+
+  // Handle row click to navigate to customer details
+  const handleRowClick = (client: Customer) => {
+    router.push(`/customers/${client.id}`)
+  }
+
+  const stickyContent = (
+    <Flex wrap="wrap" gap="md">
+      {clientStats.map((stat, index) => (
+        <Box key={index} style={{ flex: '1 1 300px', minWidth: '250px' }}>
+          <Card padding="lg" radius="md" withBorder>
+            <Group justify="space-between">
+              <Box>
+                <Text c="dimmed" size="sm" fw={500}>
+                  {stat.title}
+                </Text>
+                <Text fw={700} size="xl">
+                  {stat.value}
+                </Text>
+                <Text c="green" size="sm">
+                  {stat.change} from last month
+                </Text>
+              </Box>
+              <ActionIcon
+                size="xl"
+                radius="md"
+                variant="light"
+                color={stat.color}
+              >
+                <stat.icon size={24} />
+              </ActionIcon>
+            </Group>
+          </Card>
+        </Box>
+      ))}
+    </Flex>
+  )
+
+  const [pageLoading, setPageLoading] = useState(true)
+
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        // Small, cheap request just to ensure API is reachable; real data wiring can replace this
+        await fetch('/api/customers?take=1', { credentials: 'include' })
+      } catch (e) {
+        // ignore errors; we still proceed to render with mock data
+      } finally {
+        if (mounted) setPageLoading(false)
+      }
+    })()
+    return () => { mounted = false }
+  }, [])
+
+  if (pageLoading) {
+    return (
+      <PageLayout
+        title="Customers"
+        subtitle="Manage your customer relationships and contacts"
+        showBackButton={false}
+        actions={
+          <Group>
+            <Button leftSection={<IconFilter size={16} />} variant="light" disabled>
+              Filter
+            </Button>
+            <Button leftSection={<IconPlus size={16} />} disabled>
+              Add Customer
+            </Button>
+          </Group>
+        }
+      >
+        <PageSkeleton withStats withFilters tableColumns={6} tableRows={10} />
+      </PageLayout>
+    )
+  }
+
+  return (
+    <PageLayout
+      title="Customers"
+      subtitle="Manage your customer relationships and contacts"
+      showBackButton={false}
+      stickyContent={stickyContent}
+      actions={
         <Group>
           <Button leftSection={<IconFilter size={16} />} variant="light">
             Filter
           </Button>
-          <Button leftSection={<IconPlus size={16} />}>
-            Add Client
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={() => router.push('/customers/create')}
+          >
+            Add Customer
           </Button>
         </Group>
-      </Flex>
+      }
+    >
 
-      {/* Stats Cards */}
-      <Flex wrap="wrap" gap="md">
-        {clientStats.map((stat, index) => (
-          <Box key={index} style={{ flex: '1 1 300px', minWidth: '250px' }}>
-            <Card padding="lg" radius="md" withBorder>
-              <Group justify="space-between">
-                <Box>
-                  <Text c="dimmed" size="sm" fw={500}>
-                    {stat.title}
-                  </Text>
-                  <Text fw={700} size="xl">
-                    {stat.value}
-                  </Text>
-                  <Text c="green" size="sm">
-                    {stat.change} from last month
-                  </Text>
-                </Box>
-                <ActionIcon
-                  size="xl"
-                  radius="md"
-                  variant="light"
-                  color={stat.color}
-                >
-                  <stat.icon size={24} />
-                </ActionIcon>
-              </Group>
-            </Card>
-          </Box>
-        ))}
-      </Flex>
-
-      {/* Search and Filters */}
-      <Card padding="lg" radius="md" withBorder>
-        <Flex wrap="wrap" gap="md">
-          <Box style={{ flex: '1 1 300px', minWidth: '250px' }}>
-            <TextInput
-              placeholder="Search clients..."
-              leftSection={<IconSearch size={16} />}
-            />
-          </Box>
-          <Box style={{ flex: '1 1 150px', minWidth: '150px' }}>
-            <Select
-              placeholder="Status"
-              data={[
-                { value: "all", label: "All Status" },
-                { value: "active", label: "Active" },
-                { value: "inactive", label: "Inactive" },
-                { value: "pending", label: "Pending" },
-              ]}
-            />
-          </Box>
-          <Box style={{ flex: '1 1 150px', minWidth: '150px' }}>
-            <Select
-              placeholder="Sort by"
-              data={[
-                { value: "name", label: "Name" },
-                { value: "revenue", label: "Revenue" },
-                { value: "projects", label: "Projects" },
-                { value: "lastContact", label: "Last Contact" },
-              ]}
-            />
-          </Box>
-        </Flex>
-      </Card>
-
-      {/* Clients Table */}
-      <Card padding="lg" radius="md" withBorder>
-        <Group justify="space-between" mb="md">
-          <Title order={3}>All Clients</Title>
-          <Text c="dimmed" size="sm">
-            {clients.length} clients total
-          </Text>
-        </Group>
-        
-        <Stack gap="md">
-          {/* Table Header */}
-          <Group justify="space-between" p="md" style={{ borderBottom: '1px solid var(--mantine-color-gray-3)' }}>
-            <Text fw={600} size="sm">Client</Text>
-            <Text fw={600} size="sm">Contact</Text>
-            <Text fw={600} size="sm">Status</Text>
-            <Text fw={600} size="sm">Projects</Text>
-            <Text fw={600} size="sm">Revenue</Text>
-            <Text fw={600} size="sm">Actions</Text>
-          </Group>
-
-          {/* Table Rows */}
-          {clients.map((client) => (
-            <Card key={client.id} padding="md" radius="md" withBorder>
-              <Group justify="space-between" align="center">
-                <Group gap="sm">
-                  <Avatar size="sm" radius="xl">
-                    {client.avatar}
-                  </Avatar>
-                  <Box>
-                    <Text fw={500}>{client.name}</Text>
-                    <Text size="xs" c="dimmed">ID: {client.id}</Text>
-                  </Box>
-                </Group>
-
-                <Stack gap={2}>
-                  <Group gap="xs">
-                    <IconMail size={12} />
-                    <Text size="sm">{client.email}</Text>
-                  </Group>
-                  <Group gap="xs">
-                    <IconPhone size={12} />
-                    <Text size="sm">{client.phone}</Text>
-                  </Group>
-                </Stack>
-
-                <Badge color={getStatusColor(client.status)} variant="light">
-                  {client.status}
-                </Badge>
-
-                <Text fw={500}>{client.projects}</Text>
-                <Text fw={500}>{client.revenue}</Text>
-
-                <Group gap="xs">
-                  <ActionIcon variant="subtle" size="sm">
-                    <IconEye size={16} />
-                  </ActionIcon>
-                  <ActionIcon variant="subtle" size="sm">
-                    <IconEdit size={16} />
-                  </ActionIcon>
-                  <ActionIcon variant="subtle" size="sm" color="red">
-                    <IconTrash size={16} />
-                  </ActionIcon>
-                </Group>
-              </Group>
-            </Card>
-          ))}
-        </Stack>
-      </Card>
-    </Stack>
+      {/* Customers Table with TanStack Table */}
+      <DataTable
+        columns={columns}
+        data={clients}
+        searchPlaceholder="Search customers..."
+        onRowClick={handleRowClick}
+      />
+    </PageLayout>
   )
 }

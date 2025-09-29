@@ -1,0 +1,379 @@
+// CamInvoice SaaS Portal - Database Schema
+// Multi-tenant e-Invoicing system with BetterAuth integration
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// AUTHENTICATION & USER MANAGEMENT
+// ============================================================================
+
+enum UserRole {
+  PROVIDER      // Service provider personnel
+  TENANT_ADMIN  // Tenant administrator
+  TENANT_USER   // Regular tenant employee
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model User {
+  id          String     @id @default(cuid())
+  email       String     @unique
+  firstName   String
+  lastName    String
+  password    String     // Hashed password
+  role        UserRole
+  status      UserStatus @default(ACTIVE)
+
+  // Multi-tenant relationship
+  tenantId    String?    // Null for provider users
+  tenant      Tenant?    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Metadata
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  lastLoginAt DateTime?
+
+  // Relations
+  sessions    Session[]
+  auditLogs   AuditLog[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// ============================================================================
+// TENANT MANAGEMENT
+// ============================================================================
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING
+  INACTIVE
+}
+
+model Tenant {
+  id                String       @id @default(cuid())
+  name              String       // Display name
+  businessName      String       // Legal business name
+  taxId             String       @unique
+  registrationNumber String?
+
+  // Contact Information
+  email             String
+  phone             String
+  website           String?
+
+  // Address
+  address           String
+  city              String
+  postalCode        String?
+  country           String       @default("Cambodia")
+
+  // Status & Metadata
+  status            TenantStatus @default(PENDING)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  // CamInvoice Integration
+  camInvoiceEndpointId String?   // CamInvoice endpoint ID
+  camInvoiceMocId      String?   // Ministry of Commerce ID
+  isConnectedToCamInv  Boolean   @default(false)
+
+  // Invoice Configuration
+  currency             String    @default("USD")
+  taxRate              Float     @default(10.0)
+  invoicePrefix        String    @default("INV")
+  invoiceNumberStart   Int       @default(1000)
+
+  // Relations
+  users             User[]
+  customers         Customer[]
+  invoices          Invoice[]
+  creditNotes       CreditNote[]
+  auditLogs         AuditLog[]
+
+  @@map("tenants")
+}
+
+// ============================================================================
+// PROVIDER CONFIGURATION
+// ============================================================================
+
+model Provider {
+  id                String    @id @default(cuid())
+  name              String    @default("CamInvoice Service Provider")
+
+  // CamInvoice API Configuration
+  clientId          String    @unique
+  clientSecret      String    // Encrypted
+  baseUrl           String    @default("https://api.caminvoice.gov.kh")
+
+  // OAuth Configuration
+  redirectUrls      String[]  // Array of allowed redirect URLs
+  accessToken       String?   // Encrypted
+  refreshToken      String?   // Encrypted
+  tokenExpiresAt    DateTime?
+
+  // Provider Business Information (from OAuth)
+  endpointId        String?
+  mocId             String?
+  companyNameEn     String?
+  companyNameKh     String?
+  tin               String?
+  incorporationDate DateTime?
+  businessType      String?
+  providerCity      String?
+  providerCountry   String?
+  providerPhone     String?
+  providerEmail     String?
+
+  // Status & Metadata
+  isConfigured      Boolean   @default(false)
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@map("providers")
+}
+
+// ============================================================================
+// CUSTOMER MANAGEMENT
+// ============================================================================
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model Customer {
+  id                String         @id @default(cuid())
+  tenantId          String
+
+  // Basic Information
+  name              String
+  businessName      String?
+  taxId             String?
+  registrationNumber String?
+
+  // Contact Information
+  email             String?
+  phone             String?
+  website           String?
+
+  // Address
+  address           String
+  city              String
+  postalCode        String?
+  country           String         @default("Cambodia")
+
+  // Status & Metadata
+  status            CustomerStatus @default(ACTIVE)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  // Relations
+  tenant            Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoices          Invoice[]
+  creditNotes       CreditNote[]
+
+  @@map("customers")
+}
+
+// ============================================================================
+// INVOICE MANAGEMENT
+// ============================================================================
+
+enum InvoiceStatus {
+  DRAFT
+  SUBMITTED
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
+enum InvoiceType {
+  INVOICE
+  CREDIT_NOTE
+  DEBIT_NOTE
+}
+
+model Invoice {
+  id                String        @id @default(cuid())
+  tenantId          String
+  customerId        String
+
+  // Invoice Details
+  invoiceNumber     String
+  type              InvoiceType   @default(INVOICE)
+  status            InvoiceStatus @default(DRAFT)
+
+  // Dates
+  issueDate         DateTime
+  dueDate           DateTime?
+
+  // Financial Information
+  subtotal          Decimal       @db.Decimal(12, 2)
+  taxAmount         Decimal       @db.Decimal(12, 2)
+  totalAmount       Decimal       @db.Decimal(12, 2)
+  currency          String        @default("USD")
+
+  // CamInvoice Integration
+  camInvoiceUuid    String?       @unique
+  camInvoiceStatus  String?
+  xmlContent        String?       @db.Text
+  pdfUrl            String?
+  qrCode            String?
+  verificationUrl   String?
+
+  // Metadata
+  notes             String?       @db.Text
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  submittedAt       DateTime?
+
+  // Relations
+  tenant            Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer          Customer      @relation(fields: [customerId], references: [id])
+  lineItems         InvoiceLineItem[]
+  auditLogs         AuditLog[]
+
+  @@unique([tenantId, invoiceNumber])
+  @@map("invoices")
+}
+
+model InvoiceLineItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+
+  // Line Item Details
+  description String
+  quantity    Decimal @db.Decimal(10, 3)
+  unitPrice   Decimal @db.Decimal(10, 2)
+  lineTotal   Decimal @db.Decimal(12, 2)
+
+  // Tax Information
+  taxRate     Decimal @db.Decimal(5, 4) // e.g., 0.10 for 10%
+  taxAmount   Decimal @db.Decimal(10, 2)
+
+  // Relations
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_line_items")
+}
+
+// ============================================================================
+// CREDIT/DEBIT NOTES
+// ============================================================================
+
+model CreditNote {
+  id                String        @id @default(cuid())
+  tenantId          String
+  customerId        String
+  originalInvoiceId String?       // Reference to original invoice if applicable
+
+  // Credit Note Details
+  creditNoteNumber  String
+  type              InvoiceType   // CREDIT_NOTE or DEBIT_NOTE
+  status            InvoiceStatus @default(DRAFT)
+  reason            String?       @db.Text
+
+  // Dates
+  issueDate         DateTime
+
+  // Financial Information
+  subtotal          Decimal       @db.Decimal(12, 2)
+  taxAmount         Decimal       @db.Decimal(12, 2)
+  totalAmount       Decimal       @db.Decimal(12, 2)
+  currency          String        @default("USD")
+
+  // CamInvoice Integration
+  camInvoiceUuid    String?       @unique
+  camInvoiceStatus  String?
+  xmlContent        String?       @db.Text
+  pdfUrl            String?
+  qrCode            String?
+  verificationUrl   String?
+
+  // Metadata
+  notes             String?       @db.Text
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  submittedAt       DateTime?
+
+  // Relations
+  tenant            Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer          Customer      @relation(fields: [customerId], references: [id])
+
+  @@unique([tenantId, creditNoteNumber])
+  @@map("credit_notes")
+}
+
+// ============================================================================
+// AUDIT LOGGING
+// ============================================================================
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  SUBMIT_INVOICE
+  APPROVE_INVOICE
+  REJECT_INVOICE
+  CONFIGURE_PROVIDER
+  CREATE_TENANT
+  SUSPEND_TENANT
+  ACTIVATE_TENANT
+}
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  userId      String?     // Null for system actions
+  tenantId    String?     // Null for provider actions
+
+  // Action Details
+  action      AuditAction
+  entityType  String      // e.g., "Invoice", "User", "Tenant"
+  entityId    String?     // ID of the affected entity
+
+  // Context Information
+  description String      @db.Text
+  metadata    Json?       // Additional context data
+  ipAddress   String?
+  userAgent   String?
+
+  // Timestamp
+  createdAt   DateTime    @default(now())
+
+  // Relations
+  user        User?       @relation(fields: [userId], references: [id])
+  tenant      Tenant?     @relation(fields: [tenantId], references: [id])
+  invoice     Invoice?    @relation(fields: [entityId], references: [id])
+
+  @@map("audit_logs")
+}

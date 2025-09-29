@@ -10,15 +10,12 @@ const data = [
     links: [
       { label: 'Help Center', link: '#' },
       { label: 'Documentation', link: '#' },
-      { label: 'API Reference', link: '#' },
-      { label: 'Video Tutorials', link: '#' },
     ],
   },
   {
     title: 'Company',
     links: [
       { label: 'About Us', link: '#' },
-      { label: 'Careers', link: '#' },
       { label: 'Contact Us', link: '#' },
     ],
   },
@@ -26,9 +23,7 @@ const data = [
     title: 'Support',
     links: [
       { label: 'Contact Support', link: '#' },
-      { label: 'Feature Requests', link: '#' },
       { label: 'System Status', link: '#' },
-      { label: 'Security', link: '#' },
     ],
   },
   {
@@ -36,9 +31,6 @@ const data = [
     links: [
       { label: 'Privacy Policy', link: '#' },
       { label: 'Terms of Service', link: '#' },
-      { label: 'Cookie Policy', link: '#' },
-      { label: 'GDPR Compliance', link: '#' },
-      { label: 'Data Processing', link: '#' },
     ],
   },
 ];
@@ -80,8 +72,7 @@ export function FooterLinks() {
             </Text>
           </Group>
           <Text size="xs" c="dimmed" className={classes.description}>
-            Professional invoicing and client management platform designed for modern businesses.
-            Streamline your billing process with powerful automation and insights.
+            Professional invoicing platform for modern businesses.
           </Text>
         </div>
         <div className={classes.groups}>{groups}</div>

@@ -18,59 +18,128 @@ import {
   IconHome,
   IconSearch,
   IconSettings,
-  IconUser,
+  IconUsers,
   IconReceipt,
   IconLogs,
-  IconSettings2
+  IconFileText,
+  IconShieldCheck,
+  IconPlugConnected,
+  IconUserCog
 } from "@tabler/icons-react"
 import { MantineLogoRounded } from "../MantineLogoRounded"
 import ThemeSwitch from "../ThemeSwitch"
 import VersionUpdate from "../navigation/VersionUpdate"
 import { useStore } from "../../store/useStore"
+import { useAuth } from "../../hooks/useAuth"
 import classes from "./styles/Navbar.module.css"
 
-const navlinks = [
+interface NavLink {
+  id: number
+  icon: any
+  title: string
+  link: string
+  roleRequired?: string
+}
+
+interface NavSection {
+  title: string
+  shortTitle: string
+  links: NavLink[]
+}
+
+const navigationSections: NavSection[] = [
   {
-    id: 1,
-    icon: IconHome,
-    title: "Dashboard",
-    link: "/",
+    title: "Navigation",
+    shortTitle: "NAV",
+    links: [
+      {
+        id: 1,
+        icon: IconHome,
+        title: "Dashboard",
+        link: "/",
+      },
+      {
+        id: 2,
+        icon: IconReceipt,
+        title: "Invoices",
+        link: "/invoices",
+      },
+      {
+        id: 3,
+        icon: IconFileText,
+        title: "Credit/Debit Notes",
+        link: "/credit-notes",
+      },
+      {
+        id: 4,
+        icon: IconUsers,
+        title: "Customers",
+        link: "/customers",
+      },
+      {
+        id: 5,
+        icon: IconUserCog,
+        title: "User Management",
+        link: "/users",
+      },
+    ]
   },
   {
-    id: 2,
-    icon: IconReceipt,
-    title: "Invoices",
-    link: "/invoices",
-  },
-  {
-    id: 3,
-    icon: IconUser,
-    title: "Clients",
-    link: "/clients",
-  },
-  {
-    id: 4,
-    icon: IconLogs,
-    title: "Audit Logs",
-    link: "/audit-logs",
-  },
-  {
-    id: 5,
-    icon: IconSettings2,
-    title: "Cambodia e-Invoice Settings",
-    link: "/caminvoice-settings",
-  },
-  {
-    id: 6,
-    icon: IconSettings,
-    title: "Settings",
-    link: "/settings",
-  },
+    title: "System",
+    shortTitle: "SYS",
+    links: [
+      {
+        id: 6,
+        icon: IconLogs,
+        title: "Audit Logs",
+        link: "/audit-logs",
+      },
+      {
+        id: 7,
+        icon: IconSettings,
+        title: "Settings",
+        link: "/settings",
+      },
+      {
+        id: 8,
+        icon: IconShieldCheck,
+        title: "Provider Connection",
+        link: "/connection",
+        roleRequired: "PROVIDER", // Only show for provider role
+      },
+       {
+        id: 9,
+        icon: IconShieldCheck,
+        title: "Provider Admin",
+        link: "/provider",
+        roleRequired: "PROVIDER", // Only show for provider role
+      },
+    ]
+  }
 ]
 
 export default function Navbar() {
   const { isNavbarCollapse, toggleNavbar } = useStore()
   const pathname = usePathname()
+
+  // Get user role from authentication context
+  const { user, loading } = useAuth()
+  const userRole = user?.role || null
+
+  // Filter navigation sections based on user role
+  const filteredSections = navigationSections
+    .map(section => ({
+      ...section,
+      links: section.links.filter(link => {
+        if (link.roleRequired) {
+          // While loading, hide role-restricted links to avoid flash
+          if (!userRole) return false
+          return userRole === link.roleRequired
+        }
+        return true
+      }),
+    }))
+    .filter(section => section.links.length > 0) // Remove empty sections
 
   return (
     <Stack
@@ -209,55 +278,68 @@ export default function Navbar() {
         )}
         {/* Navlinks */}
 
-        <Flex
-          w="100%"
-          direction="column"
-          align={isNavbarCollapse ? "center" : "start"}
-          gap={14}
-        >
-          <Text className={classes.navTitle} fz={12} fw={500} tt="uppercase">
-            {isNavbarCollapse ? "NAV" : "Navigation"}
-          </Text>
-          <Flex w="100%" gap={6} direction="column" align={"start"}>
-            {navlinks.map(({ id, icon: Icon, title, link }) => {
-              const isActive = pathname === link
-              return isNavbarCollapse ? (
-                <Tooltip
-                  position="right"
-                  transitionProps={{
-                    transition: "rotate-right",
-                  }}
-                  key={id}
-                  label={
-                    <Text fw={500} fz={13}>
-                      {title}
-                    </Text>
-                  }
-                >
+        {filteredSections.map((section, sectionIndex) => (
+          <Flex
+            key={section.title}
+            w="100%"
+            direction="column"
+            align={isNavbarCollapse ? "center" : "start"}
+            gap={14}
+          >
+            <Text className={classes.navTitle} fz={12} fw={500} tt="uppercase">
+              {isNavbarCollapse ? section.shortTitle : section.title}
+            </Text>
+            <Flex w="100%" gap={6} direction="column" align={"start"}>
+              {section.links.map(({ id, icon: Icon, title, link }) => {
+                const isActive = pathname === link
+                return isNavbarCollapse ? (
+                  <Tooltip
+                    position="right"
+                    transitionProps={{
+                      transition: "rotate-right",
+                    }}
+                    key={id}
+                    label={
+                      <Text fw={500} fz={13}>
+                        {title}
+                      </Text>
+                    }
+                  >
+                    <Link
+                      data-collapse={isNavbarCollapse}
+                      data-active={isActive}
+                      className={classes.navlink}
+                      href={link}
+                    >
+                      <Icon size={18} stroke={1.5} />
+                    </Link>
+                  </Tooltip>
+                ) : (
                   <Link
                     data-collapse={isNavbarCollapse}
                     data-active={isActive}
                     className={classes.navlink}
                     href={link}
+                    key={id}
                   >
                     <Icon size={18} stroke={1.5} />
+                    <Text className={classes.nav_title}>{title}</Text>
                   </Link>
-                </Tooltip>
-              ) : (
-                <Link
-                  data-collapse={isNavbarCollapse}
-                  data-active={isActive}
-                  className={classes.navlink}
-                  href={link}
-                  key={id}
-                >
-                  <Icon size={18} stroke={1.5} />
-                  <Text className={classes.nav_title}>{title}</Text>
-                </Link>
-              )
-            })}
+                )
+              })}
+            </Flex>
+
+            {/* Add divider between sections, but not after the last one */}
+            {sectionIndex < filteredSections.length - 1 && (
+              <div style={{
+                width: '100%',
+                height: '1px',
+                backgroundColor: 'var(--mantine-color-gray-3)',
+                margin: '8px 0'
+              }} />
+            )}
           </Flex>
-        </Flex>
+        ))}
         {/* Navlinks */}
         {/* <Divider w="100%" /> */}
         {/* App Links */}

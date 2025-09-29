@@ -7,6 +7,7 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 .navbar {
@@ -65,7 +66,7 @@
 
   /* Header height + padding top */
   padding-top: calc(var(--app-header-height, 60px) + 1.25rem);
-  padding-bottom: 2rem;
+  padding-bottom: 2rem; /* Reduced from 200px to reasonable spacing */
   min-height: calc(100vh - var(--app-header-height, 60px));
 
   /* Navbar Width + padding left */
@@ -76,5 +77,6 @@
     padding-top: calc(var(--app-header-height, 60px) + 1.25rem);
     padding-left: 1.25rem;
     padding-right: 1.25rem;
+    padding-bottom: 2rem; /* Reduced from 220px to reasonable spacing */
   }
 }

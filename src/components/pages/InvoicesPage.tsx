@@ -1,262 +1,202 @@
+'use client'
+
 import {
   Box,
   Button,
-  Card,
   Flex,
   Group,
-  Stack,
   Text,
-  Title,
   ActionIcon,
+  Badge,
+  Avatar,
+  Menu,
+  Modal,
+  Paper,
 } from "@mantine/core"
 import {
   IconPlus,
+  IconEye,
+  IconEdit,
+  IconDownload,
+  IconDots,
 } from "@tabler/icons-react"
-// import Breadcrumbs from "../navigation/Breadcrumbs"
+import { useRouter } from "next/navigation"
+import { useEffect, useState } from 'react'
+import { type ColumnDef } from '@tanstack/react-table'
+import PageLayout from "../layouts/PageLayout"
+import PageSkeleton from "../skeletons/PageSkeleton"
+import { DataTable } from '../tables/DataTable'
+import StatsCard from '../ui/StatsCard'
+import { IconFileInvoice, IconCurrencyDollar, IconClock, IconUsers } from '@tabler/icons-react'
 
-// Mock data for demonstration
-const invoiceStats = [
-  {
-    title: "Total Invoices",
-    value: "1,234",
-    icon: IconPlus,
-    color: "blue",
-    change: "+12%",
-  },
-  {
-    title: "Total Revenue",
-    value: "$45,678",
-    icon: IconPlus,
-    color: "green",
-    change: "+8%",
-  },
-  {
-    title: "Pending Invoices",
-    value: "23",
-    icon: IconPlus,
-    color: "orange",
-    change: "-5%",
-  },
-  {
-    title: "Active Clients",
-    value: "156",
-    icon: IconPlus,
-    color: "purple",
-    change: "+3%",
-  },
-]
+// Runtime types for table rows
+interface InvoiceRow {
+  id: string
+  invoiceNumber: string
+  customerName: string
+  amount: string
+  status: string
+  date: string
+  avatar: string
+  camInvUuid: string | null
+  verificationUrl?: string | null
+}
 
-const recentInvoices = [
-  {
-    id: "INV-001",
-    client: "Acme Corp",
-    amount: "$2,500.00",
-    status: "Paid",
-    date: "2024-01-15",
-    avatar: "AC",
-  },
-  {
-    id: "INV-002",
-    client: "Tech Solutions",
-    amount: "$1,800.00",
-    status: "Pending",
-    date: "2024-01-14",
-    avatar: "TS",
-  },
-  {
-    id: "INV-003",
-    client: "Design Studio",
-    amount: "$3,200.00",
-    status: "Overdue",
-    date: "2024-01-10",
-    avatar: "DS",
-  },
-  {
-    id: "INV-004",
-    client: "Marketing Plus",
-    amount: "$950.00",
-    status: "Draft",
-    date: "2024-01-12",
-    avatar: "MP",
-  },
-]
+interface InvoiceStats {
+  totalInvoices: number
+  totalRevenue: number
+  pendingInvoices: number
+  activeClients: number
+}
 
 function getStatusColor(status: string) {
-  switch (status) {
-    case "Paid":
-      return "green"
-    case "Pending":
-      return "yellow"
-    case "Overdue":
-      return "red"
-    case "Draft":
-      return "gray"
-    default:
-      return "blue"
+  switch (status?.toUpperCase()) {
+    case 'DRAFT': return 'gray'
+    case 'SUBMITTED': return 'blue'
+    case 'ACCEPTED': return 'green'
+    case 'REJECTED': return 'red'
+    default: return 'blue'
   }
 }
 
 export default function InvoicesPage() {
-  return (
-    <Stack gap="xl">
-      {/* <Breadcrumbs /> */}
-      {/* Header */}
-      <Flex justify="space-between" align="center">
-        <Box>
-          <Title order={2}>Invoices</Title>
-          <Text c="dimmed" size="sm">
-            Manage your invoices and track payments
-          </Text>
-        </Box>
-        <Group>
-          <Button variant="light">
-            Export
-          </Button>
-          <Button>
-            Create Invoice
-          </Button>
-        </Group>
-      </Flex>
+  const router = useRouter()
 
-      {/* Stats Cards */}
-      <Flex wrap="wrap" gap="md">
-        {invoiceStats.map((stat, index) => (
-          <Box key={index} style={{ flex: '1 1 300px', minWidth: '250px' }}>
-            <Card padding="lg" radius="md" withBorder>
-              <Group justify="space-between">
-                <Box>
-                  <Text c="dimmed" size="sm" fw={500}>
-                    {stat.title}
-                  </Text>
-                  <Text fw={700} size="xl">
-                    {stat.value}
-                  </Text>
-                  <Text c={stat.change.startsWith("+") ? "green" : "red"} size="sm">
-                    {stat.change} from last month
-                  </Text>
-                </Box>
-                <ActionIcon
-                  size="xl"
-                  radius="md"
-                  variant="light"
-                  color={stat.color}
-                >
-                  <IconPlus size={24} />
-                </ActionIcon>
-              </Group>
-            </Card>
+  const [rows, setRows] = useState<InvoiceRow[]>([])
+  const [stats, setStats] = useState<InvoiceStats | null>(null)
+  const [pageLoading, setPageLoading] = useState(true)
+  const [xmlModal, setXmlModal] = useState<{ opened: boolean; content: string | null; title?: string }>({ opened: false, content: null })
+
+  const handleRowClick = (invoice: InvoiceRow) => {
+    router.push(`/invoices/${invoice.id}`)
+  }
+
+  async function fetchInvoices() {
+    const res = await fetch('/api/invoices', { credentials: 'include' })
+    if (!res.ok) throw new Error('Failed to load invoices')
+    const data = await res.json()
+    const formatter = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' })
+    const mapped: InvoiceRow[] = (data.invoices || []).map((inv: any) => ({
+      id: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      customerName: inv.customer?.name ?? '—',
+      amount: new Intl.NumberFormat(undefined, { style: 'currency', currency: inv.currency || 'USD' }).format(Number(inv.totalAmount ?? 0)),
+      status: inv.status,
+      date: new Date(inv.issueDate).toISOString().slice(0, 10),
+      avatar: (inv.customer?.name || '??').split(' ').map((s: string) => s[0]).join('').slice(0, 2).toUpperCase(),
+      camInvUuid: inv.camInvoiceUuid || null,
+      verificationUrl: inv.verificationUrl || null,
+    }))
+    setRows(mapped)
+    setStats(data.stats)
+  }
+
+  // Column definitions for the DataTable
+  const columns: ColumnDef<InvoiceRow>[] = [
+    { accessorKey: 'invoiceNumber', header: 'Invoice Number', cell: ({ row }) => (<Text fw={500}>{row.original.invoiceNumber}</Text>) },
+    {
+      accessorKey: 'customerName',
+      header: 'Client',
+      cell: ({ row }) => (
+        <Group gap="sm">
+          <Avatar size="sm" radius="xl">{row.original.avatar}</Avatar>
+          <Text>{row.original.customerName}</Text>
+        </Group>
+      ),
+    },
+    { accessorKey: 'amount', header: 'Amount', cell: ({ row }) => (<Text fw={500}>{row.original.amount}</Text>) },
+    { accessorKey: 'status', header: 'Status', cell: ({ row }) => (<Badge color={getStatusColor(row.original.status)} variant="light">{row.original.status}</Badge>) },
+    { accessorKey: 'date', header: 'Date', cell: ({ row }) => (<Text c="dimmed">{row.original.date}</Text>) },
+    { accessorKey: 'camInvUuid', header: 'CamInv UUID', cell: ({ row }) => (<Text size="sm" c="dimmed">{row.original.camInvUuid ? row.original.camInvUuid.substring(0, 12) + '...' : 'N/A'}</Text>) },
+    {
+      id: 'actions', header: 'Actions', cell: ({ row }) => (
+        <Menu shadow="md" width={240}>
+          <Menu.Target>
+            <ActionIcon variant="subtle" size="sm"><IconDots size={16} /></ActionIcon>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Item leftSection={<IconEye size={16} />} onClick={() => router.push(`/invoices/${row.original.id}`)}>View Details</Menu.Item>
+            <Menu.Item leftSection={<IconEdit size={16} />} onClick={() => router.push(`/invoices/${row.original.id}/edit`)}>Edit Invoice</Menu.Item>
+            <Menu.Item leftSection={<IconDownload size={16} />} component="a" href={`/api/invoices/${row.original.id}/pdf`} target="_blank">Download PDF</Menu.Item>
+            <Menu.Item onClick={() => submitToCamInv(row.original.id)}>Submit to CamInvoice</Menu.Item>
+            <Menu.Item onClick={() => openXml(row.original.id)}>View XML</Menu.Item>
+            {row.original.verificationUrl && (
+              <Menu.Item component="a" href={row.original.verificationUrl} target="_blank">View Verification Link</Menu.Item>
+            )}
+          </Menu.Dropdown>
+        </Menu>
+      )
+    },
+  ]
+
+  const stickyContent = (
+    <Flex wrap="wrap" gap="md">
+      {stats && (
+        <>
+          <Box style={{ flex: '1 1 300px', minWidth: '250px' }}>
+            <StatsCard title="Total Invoices" value={String(stats.totalInvoices)} icon={<IconFileInvoice size={20} />} iconColor="blue" subtitle="from last month" trend={{ value: '', type: 'up' }} />
           </Box>
-        ))}
-      </Flex>
+          <Box style={{ flex: '1 1 300px', minWidth: '250px' }}>
+            <StatsCard title="Total Revenue" value={new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(Number(stats.totalRevenue || 0))} icon={<IconCurrencyDollar size={20} />} iconColor="green" subtitle="from last month" trend={{ value: '', type: 'up' }} />
+          </Box>
+          <Box style={{ flex: '1 1 300px', minWidth: '250px' }}>
+            <StatsCard title="Pending Invoices" value={String(stats.pendingInvoices)} icon={<IconClock size={20} />} iconColor="orange" subtitle="from last month" trend={{ value: '', type: 'down' }} />
+          </Box>
+          <Box style={{ flex: '1 1 300px', minWidth: '250px' }}>
+            <StatsCard title="Active Clients" value={String(stats.activeClients)} icon={<IconUsers size={20} />} iconColor="violet" subtitle="from last month" trend={{ value: '', type: 'up' }} />
+          </Box>
+        </>
+      )}
+    </Flex>
+  )
 
-      {/* Recent Invoices Table */}
-      {/* <Card padding="lg" radius="md" withBorder>
-        <Group justify="space-between" mb="md">
-          <Title order={3}>Recent Invoices</Title>
-          <Button variant="light" size="sm">
-            View All
-          </Button>
-        </Group>
-        
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Invoice</Table.Th>
-              <Table.Th>Client</Table.Th>
-              <Table.Th>Amount</Table.Th>
-              <Table.Th>Status</Table.Th>
-              <Table.Th>Date</Table.Th>
-              <Table.Th>Actions</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {recentInvoices.map((invoice) => (
-              <Table.Tr key={invoice.id}>
-                <Table.Td>
-                  <Text fw={500}>{invoice.id}</Text>
-                </Table.Td>
-                <Table.Td>
-                  <Group gap="sm">
-                    <Avatar size="sm" radius="xl">
-                      {invoice.avatar}
-                    </Avatar>
-                    <Text>{invoice.client}</Text>
-                  </Group>
-                </Table.Td>
-                <Table.Td>
-                  <Text fw={500}>{invoice.amount}</Text>
-                </Table.Td>
-                <Table.Td>
-                  <Badge color={getStatusColor(invoice.status)} variant="light">
-                    {invoice.status}
-                  </Badge>
-                </Table.Td>
-                <Table.Td>
-                  <Text c="dimmed">{invoice.date}</Text>
-                </Table.Td>
-                <Table.Td>
-                  <Group gap="xs">
-                    <ActionIcon variant="subtle" size="sm">
-                      <IconEye size={16} />
-                    </ActionIcon>
-                    <ActionIcon variant="subtle" size="sm">
-                      <IconEdit size={16} />
-                    </ActionIcon>
-                    <ActionIcon variant="subtle" size="sm" color="red">
-                      <IconTrash size={16} />
-                    </ActionIcon>
-                  </Group>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      </Card> */}
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        await fetchInvoices()
+      } finally {
+        if (mounted) setPageLoading(false)
+      }
+    })()
+    return () => { mounted = false }
+  }, [])
 
-      {/* Quick Actions
-      <Grid>
-        <Grid.Col span={{ base: 12, md: 6 }}>
-          <Paper p="lg" radius="md" withBorder>
-            <Title order={4} mb="md">Payment Status</Title>
-            <Stack gap="sm">
-              <Group justify="space-between">
-                <Text size="sm">Paid Invoices</Text>
-                <Text size="sm" fw={500}>78%</Text>
-              </Group>
-              <Progress value={78} color="green" />
-              
-              <Group justify="space-between">
-                <Text size="sm">Pending Invoices</Text>
-                <Text size="sm" fw={500}>15%</Text>
-              </Group>
-              <Progress value={15} color="yellow" />
-              
-              <Group justify="space-between">
-                <Text size="sm">Overdue Invoices</Text>
-                <Text size="sm" fw={500}>7%</Text>
-              </Group>
-              <Progress value={7} color="red" />
-            </Stack>
-          </Paper>
-        </Grid.Col>
-        
-        <Grid.Col span={{ base: 12, md: 6 }}>
-          <Paper p="lg" radius="md" withBorder>
-            <Title order={4} mb="md">Quick Actions</Title>
-            <Stack gap="sm">
-              <Button fullWidth variant="light" leftSection={<IconPlus size={16} />}>
-                Create New Invoice
-              </Button>
-              <Button fullWidth variant="light" leftSection={<IconDownload size={16} />}>
-                Download Reports
-              </Button>
-              <Button fullWidth variant="light" leftSection={<IconPlus size={16} />}>
-                Manage Clients
-              </Button>
-            </Stack>
-          </Paper>
-        </Grid.Col>
-      </Grid> */}
-    </Stack>
+  async function openXml(id: string) {
+    const res = await fetch(`/api/invoices/${id}`)
+    if (!res.ok) return
+    const data = await res.json()
+    setXmlModal({ opened: true, content: data.invoice?.xmlContent || '', title: data.invoice?.invoiceNumber })
+  }
+
+  async function submitToCamInv(id: string) {
+    const res = await fetch('/api/invoices/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId: id }) })
+    if (res.ok) await fetchInvoices()
+  }
+
+  if (pageLoading) {
+    return (
+      <PageLayout title="Invoices" subtitle="Manage your invoices and track CamInvoice submissions" showBackButton={false} actions={<Group><Button variant="light" leftSection={<IconDownload size={16} />} disabled>Export</Button><Button leftSection={<IconPlus size={16} />} disabled>Create Invoice</Button></Group>}>
+        <PageSkeleton withStats withFilters tableColumns={7} tableRows={12} />
+      </PageLayout>
+    )
+  }
+
+  return (
+    <PageLayout
+      title="Invoices"
+      subtitle="Manage your invoices and track CamInvoice submissions"
+      showBackButton={false}
+      stickyContent={stickyContent}
+      actions={<Group><Button variant="light" leftSection={<IconDownload size={16} />}>Export</Button><Button leftSection={<IconPlus size={16} />} onClick={() => router.push('/invoices/create')}>Create Invoice</Button></Group>}
+    >
+      <DataTable columns={columns} data={rows} searchPlaceholder="Search invoices..." onRowClick={handleRowClick} />
+
+      <Modal opened={xmlModal.opened} onClose={() => setXmlModal({ opened: false, content: null })} title={`UBL XML - ${xmlModal.title || ''}`} size="xl">
+        <Paper p="md" bg="gray.0" style={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', fontSize: 12 }}>
+          {xmlModal.content || 'No XML available'}
+        </Paper>
+      </Modal>
+    </PageLayout>
   )
 }

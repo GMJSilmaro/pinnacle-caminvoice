@@ -2,9 +2,10 @@
 import { AppShell } from "@mantine/core"
 import { useDisclosure } from "@mantine/hooks"
 import { useStore } from "../../store/useStore"
+import { useNavigationProgress } from "../../hooks/useNavigationProgress"
 import Header from "./Header"
 import Navbar from "./Navbar"
-import { FooterLinks } from "./Footer"
+// import { FooterLinks } from "./Footer"
 import classes from "./styles/App.module.css"
 
 interface Props {
@@ -13,8 +14,10 @@ interface Props {
 
 export default function App({ children }: Props) {
   const [opened, { toggle }] = useDisclosure()
-
   const { isNavbarCollapse } = useStore()
+
+  // Initialize navigation progress
+  useNavigationProgress()
 
   return (
     <div className={classes.layoutWrapper}>
@@ -42,7 +45,7 @@ export default function App({ children }: Props) {
           {children}
         </AppShell.Main>
       </AppShell>
-      <FooterLinks />
+       {/* <FooterLinks /> */}
     </div>
   )
 }

@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "public"."tenants" ADD COLUMN     "currency" TEXT NOT NULL DEFAULT 'USD',
+ADD COLUMN     "invoiceNumberStart" INTEGER NOT NULL DEFAULT 1000,
+ADD COLUMN     "invoicePrefix" TEXT NOT NULL DEFAULT 'INV',
+ADD COLUMN     "taxRate" DOUBLE PRECISION NOT NULL DEFAULT 10.0;

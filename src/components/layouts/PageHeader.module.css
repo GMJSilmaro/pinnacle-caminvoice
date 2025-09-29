@@ -1,0 +1,60 @@
+.stickyHeader {
+  position: relative; /* Position relative to the main layout */
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+  border: none;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.25);
+  margin-left: calc(-1 * var(--mantine-spacing-md));
+  margin-right: calc(-1 * var(--mantine-spacing-md));
+  margin-top: calc(-1 * var(--mantine-spacing-md) - 1.25rem); /* Account for main layout padding */
+  padding-left: var(--mantine-spacing-md);
+  padding-right: var(--mantine-spacing-md);
+  padding-top: 2.5rem; /* Increased top padding to eliminate gaps */
+  padding-bottom: 2rem; /* Header padding */
+  margin-bottom: 1.5rem; /* Add margin to push content down */
+  color: white;
+}
+
+.stickyHeader.scrolled {
+  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.35);
+}
+
+/* Dark theme support - Keep navy blue but slightly darker */
+@media (prefers-color-scheme: dark) {
+  .stickyHeader {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.25);
+  }
+
+  .stickyHeader.scrolled {
+    box-shadow: 0 8px 32px rgba(15, 23, 42, 0.35);
+  }
+}
+
+/* No overlap - content flows normally */
+.overlapContent {
+  margin-top: 0; /* Remove overlap so content is visible */
+  position: relative;
+  z-index: 90;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .stickyHeader {
+    top: var(--app-header-height, 60px);
+    padding-top: 1rem; /* Add top padding on mobile */
+    padding-bottom: 2rem; /* Increased bottom padding on mobile */
+    margin-left: calc(-1 * 1.25rem);
+    margin-right: calc(-1 * 1.25rem);
+    margin-top: calc(-1 * 1.25rem);
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+
+  .overlapContent {
+    margin-top: -0.75rem; /* Reduced overlap on mobile */
+    z-index: 90; /* Consistent z-index on mobile */
+  }
+}

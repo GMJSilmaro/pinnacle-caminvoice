@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 // import { Inter } from "next/font/google";
 import { MantineProvider, ColorSchemeScript, createTheme } from '@mantine/core';
+import { Notifications } from '@mantine/notifications';
+import { NavigationProgress } from '@mantine/nprogress';
 import '@mantine/core/styles.css';
 import '@mantine/charts/styles.css';
 import '@mantine/dates/styles.css';
@@ -24,8 +26,22 @@ const theme = createTheme({
   fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
   fontFamilyMonospace: 'Monaco, Courier, monospace',
   headings: { fontFamily: 'Inter, system-ui, -apple-system, sans-serif' },
+  primaryColor: 'blue',
   colors: {
-    // Custom colors to match the original template
+    // Professional SaaS blue palette
+    blue: [
+      '#e3f2fd',
+      '#bbdefb',
+      '#90caf9',
+      '#64b5f6',
+      '#42a5f5',
+      '#2196f3',
+      '#1976d2',
+      '#1565c0',
+      '#0d47a1',
+      '#0a3d91'
+    ],
+    // Keep existing colors for compatibility
     orange: [
       '#fff4e6',
       '#ffe8cc',
@@ -52,9 +68,10 @@ const theme = createTheme({
     ],
   },
   other: {
-    // Custom CSS variables for QuickDash
-    quickDashBackground: '#f8f9fa',
-    quickDashBackgroundDark: '#1a1b1e',
+    // Professional SaaS styling
+    camInvBackground: '#ffffff',
+    camInvSurface: '#f8f9fa',
+    camInvText: '#212529',
   }
 });
 
@@ -77,6 +94,8 @@ export default function RootLayout({
         className="antialiased"
       >
         <MantineProvider theme={theme}>
+          <NavigationProgress />
+          <Notifications position="top-right" zIndex={1000} />
           {children}
         </MantineProvider>
       </body>
