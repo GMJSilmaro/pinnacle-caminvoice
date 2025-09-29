@@ -260,7 +260,6 @@ model Invoice {
   tenant            Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   customer          Customer      @relation(fields: [customerId], references: [id])
   lineItems         InvoiceLineItem[]
-  auditLogs         AuditLog[]
 
   @@unique([tenantId, invoiceNumber])
   @@map("invoices")
@@ -359,8 +358,8 @@ model AuditLog {
 
   // Action Details
   action      AuditAction
-  entityType  String      // e.g., "Invoice", "User", "Tenant"
-  entityId    String?     // ID of the affected entity
+  entityType  String      // e.g., "Invoice", "User", "Tenant", "Provider"
+  entityId    String?     // ID of the affected entity (no foreign key constraint)
 
   // Context Information
   description String      @db.Text
@@ -374,7 +373,7 @@ model AuditLog {
   // Relations
   user        User?       @relation(fields: [userId], references: [id])
   tenant      Tenant?     @relation(fields: [tenantId], references: [id])
-  invoice     Invoice?    @relation(fields: [entityId], references: [id])
+  // Note: entityId is intentionally not constrained to allow auditing of different entity types
 
   @@map("audit_logs")
 }

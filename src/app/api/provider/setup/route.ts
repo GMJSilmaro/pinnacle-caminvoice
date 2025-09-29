@@ -5,14 +5,14 @@ import jwt from 'jsonwebtoken'
 // Verify provider role middleware
 async function verifyProviderRole(request: NextRequest) {
   const sessionToken = request.cookies.get('better-auth.session_token')?.value
-  
+
   if (!sessionToken) {
     return null
   }
 
   try {
     const decoded = jwt.verify(sessionToken, process.env.BETTER_AUTH_SECRET!) as any
-    
+
     // Find session in database
     const session = await prisma.session.findUnique({
       where: { token: sessionToken },
