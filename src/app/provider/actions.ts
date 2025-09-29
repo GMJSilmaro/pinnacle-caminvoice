@@ -1,7 +1,6 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { getAccessToken } from "@/lib/caminvoice"
 
 
 // Utilities
@@ -87,57 +86,112 @@ export async function configureRedirectUrls(params: { redirectUrls: string[] }) 
   return { success: true }
 }
 
-// Get access token using OAuth2 Client Credentials flow
-export async function getProviderAccessToken() {
+// Generate OAuth authorization URL (CamInvoice Authorization Code flow)
+export async function getOAuthUrl() {
   const provider = await prisma.provider.findFirst({ where: { isActive: true } })
   if (!provider) throw new Error("Provider not configured")
-  if (!provider.clientId || !provider.clientSecret) throw new Error("Provider missing clientId or clientSecret")
+  if (!provider.clientId || !provider.redirectUrls?.length) throw new Error("Provider missing clientId or redirectUrls")
+
+  const base = sanitizeBaseUrl(provider.baseUrl)
+  const redirectUrl = provider.redirectUrls[0]
+  const state = `provider_setup_${Date.now()}`
+
+  // Step 1: Generate Connect Link according to CamInvoice documentation
+  const authUrl = `${base}/connect?client_id=${encodeURIComponent(provider.clientId)}&redirect_url=${encodeURIComponent(redirectUrl)}&state=${encodeURIComponent(state)}`
+
+  return {
+    success: true,
+    authUrl,
+    state
+  }
+}
+
+// Exchange authToken for access/refresh tokens (CamInvoice Authorization Code flow)
+export async function exchangeAuthToken(input: { authToken: string; state?: string }) {
+  const provider = await prisma.provider.findFirst({ where: { isActive: true } })
+  if (!provider) throw new Error("Provider not configured")
+
+  const base = sanitizeBaseUrl(provider.baseUrl)
+
+  // Step 3: Token Request according to CamInvoice documentation
+  const basic = Buffer.from(`${provider.clientId}:${provider.clientSecret}`).toString("base64")
+
+  const tokenResponse = await fetch(`${base}/api/v1/auth/authorize/connect`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Basic ${basic}`
+    },
+    body: JSON.stringify({
+      auth_token: input.authToken
+    }),
+  })
+
+  if (!tokenResponse.ok) {
+    const raw = await tokenResponse.text().catch(() => "")
+    throw new Error(`Token exchange failed: ${tokenResponse.status} - ${raw.slice(0, 200)}`)
+  }
+
+  const tokenData: any = await tokenResponse.json()
+  const { access_token, refresh_token, business_info } = tokenData || {}
+
+  if (!access_token) {
+    throw new Error("No access token received from CamInvoice")
+  }
+
+  // Store the tokens and business info in the database
+  await prisma.provider.update({
+    where: { id: provider.id },
+    data: {
+      accessToken: access_token,
+      refreshToken: refresh_token || null,
+      tokenExpiresAt: null, // CamInvoice doesn't provide expires_in in this flow
+      isConfigured: true,
+      updatedAt: new Date(),
+    },
+  })
+
+  return {
+    success: true,
+    access_token,
+    refresh_token,
+    business_info,
+  }
+}
+
+// Test connection using existing access token
+export async function testConnection() {
+  const provider = await prisma.provider.findFirst({ where: { isActive: true } })
+  if (!provider) throw new Error("Provider not configured")
+  if (!provider.accessToken) throw new Error("No access token available. Please complete OAuth authorization first.")
 
   const base = sanitizeBaseUrl(provider.baseUrl)
 
   try {
-    const tokenData = await getAccessToken({
-      clientId: provider.clientId,
-      clientSecret: provider.clientSecret,
-      baseUrl: base,
-    })
-
-    // Store the tokens in the database
-    const tokenExpiresAt = tokenData.expires_in
-      ? new Date(Date.now() + Number(tokenData.expires_in) * 1000)
-      : null
-
-    await prisma.provider.update({
-      where: { id: provider.id },
-      data: {
-        accessToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token || null,
-        tokenExpiresAt,
-        isConfigured: true,
-        updatedAt: new Date(),
+    // Test the connection by making a simple API call (you can adjust this endpoint based on CamInvoice API)
+    const testResponse = await fetch(`${base}/api/v1/user/profile`, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${provider.accessToken}`,
+        "Content-Type": "application/json"
       },
     })
 
-    return {
-      success: true,
-      access_token: tokenData.access_token,
-      refresh_token: tokenData.refresh_token,
-      expires_in: tokenData.expires_in,
+    if (!testResponse.ok) {
+      const raw = await testResponse.text().catch(() => "")
+      throw new Error(`API test failed: ${testResponse.status} - ${raw.slice(0, 200)}`)
     }
-  } catch (error) {
-    throw new Error(`Failed to get access token: ${error instanceof Error ? error.message : 'Unknown error'}`)
-  }
-}
 
-// Test connection using OAuth2 Client Credentials flow
-export async function testConnection() {
-  try {
-    const result = await getProviderAccessToken()
+    const profileData = await testResponse.json().catch(() => ({}))
+
     return {
       success: true,
-      message: "Successfully connected to CamInvoice API and obtained access token",
-      access_token: result.access_token ? `${result.access_token.substring(0, 20)}...` : null,
-      expires_in: result.expires_in,
+      message: "Connection to CamInvoice API successful",
+      data: {
+        status: "connected",
+        userProfile: profileData,
+        connectionTime: new Date().toISOString(),
+      },
     }
   } catch (error) {
     throw new Error(`Connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`)

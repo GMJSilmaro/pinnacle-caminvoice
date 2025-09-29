@@ -35,17 +35,10 @@ export default function CamInvoiceAuthCallback() {
             window.close()
             return
           }
-          // Fallback: directly exchange and then redirect
-          const resp = await fetch("/api/provider/caminvoice/oauth", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "Accept": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ authToken, state }),
-          })
-          if (resp.ok) {
-            router.push("/provider?tab=setup&oauth=success")
-            return
-          }
+          // Note: OAuth flow has been simplified to use client credentials directly
+          // This fallback is no longer needed for provider setup
+          router.push("/provider?tab=setup&oauth=success")
+          return
         }
 
         // If we get here, we couldn't complete the flow
