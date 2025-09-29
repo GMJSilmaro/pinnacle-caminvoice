@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
 
     // Get provider configuration
     const provider = await prisma.provider.findFirst({
-      where: { status: 'ACTIVE' },
+      where: { isActive: true },
     })
 
     if (!provider || !provider.accessToken) {
@@ -187,7 +187,7 @@ export async function GET(request: NextRequest) {
 
     // Get provider configuration
     const provider = await prisma.provider.findFirst({
-      where: { status: 'ACTIVE' },
+      where: { isActive: true },
     })
 
     if (!provider) {

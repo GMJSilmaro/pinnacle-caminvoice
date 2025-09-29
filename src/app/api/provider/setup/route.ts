@@ -113,30 +113,56 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if provider already exists
-    let existingProvider = await prisma.provider.findFirst({
-      where: { isActive: true },
-    })
+    // Determine active provider and any provider that already uses this clientId
+    const [existingActive, existingByClientId] = await Promise.all([
+      prisma.provider.findFirst({ where: { isActive: true } }),
+      prisma.provider.findUnique({ where: { clientId } }),
+    ])
 
     let provider
     let isUpdate = false
 
-    if (existingProvider) {
-      // Update existing provider
+    const updateData = {
+      clientSecret, // In production, this should be encrypted
+      baseUrl,
+      description: description || null,
+      redirectUrls: redirectUrls || [],
+      accessToken: accessToken || null,
+      refreshToken: refreshToken || null,
+      tokenExpiresAt: tokenExpiresAt ? new Date(tokenExpiresAt) : null,
+      isConfigured: !!accessToken,
+      updatedAt: new Date(),
+    }
+
+    if (existingByClientId) {
+      // A record with this clientId already exists. Make it the active one and update its details.
+      isUpdate = true
+      const actions: any[] = []
+      if (existingActive && existingActive.id !== existingByClientId.id) {
+        actions.push(
+          prisma.provider.update({
+            where: { id: existingActive.id },
+            data: { isActive: false, updatedAt: new Date() },
+          })
+        )
+      }
+      actions.push(
+        prisma.provider.update({
+          where: { id: existingByClientId.id },
+          data: { ...updateData, isActive: true },
+        })
+      )
+
+      const results = await prisma.$transaction(actions)
+      provider = results[results.length - 1]
+    } else if (existingActive) {
+      // Safe to update the currently active provider (no clientId conflict)
       isUpdate = true
       provider = await prisma.provider.update({
-        where: { id: existingProvider.id },
+        where: { id: existingActive.id },
         data: {
           clientId,
-          clientSecret, // In production, this should be encrypted
-          baseUrl,
-          description: description || null,
-          redirectUrls: redirectUrls || [],
-          accessToken: accessToken || null,
-          refreshToken: refreshToken || null,
-          tokenExpiresAt: tokenExpiresAt ? new Date(tokenExpiresAt) : null,
-          isConfigured: !!accessToken,
-          updatedAt: new Date(),
+          ...updateData,
         },
       })
     } else {
@@ -145,14 +171,7 @@ export async function POST(request: NextRequest) {
         data: {
           name: 'Pinnacle CamInvoice Provider',
           clientId,
-          clientSecret, // In production, this should be encrypted
-          baseUrl,
-          description: description || null,
-          redirectUrls: redirectUrls || [],
-          accessToken: accessToken || null,
-          refreshToken: refreshToken || null,
-          tokenExpiresAt: tokenExpiresAt ? new Date(tokenExpiresAt) : null,
-          isConfigured: !!accessToken,
+          ...updateData,
           isActive: true,
         },
       })
@@ -185,8 +204,14 @@ export async function POST(request: NextRequest) {
       },
     })
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Provider setup save error:', error)
+    if (error?.code === 'P2002' && error?.meta?.target?.includes?.('clientId')) {
+      return NextResponse.json(
+        { error: 'Client ID already exists on another Provider record.' },
+        { status: 409 }
+      )
+    }
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

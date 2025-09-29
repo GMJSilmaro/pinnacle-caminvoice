@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     // Get provider configuration
     const provider = await prisma.provider.findFirst({
-      where: { status: 'ACTIVE' },
+      where: { isActive: true },
     })
 
     if (!provider || !provider.clientId || !provider.clientSecret) {
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
       await prisma.auditLog.create({
         data: {
           userId: providerUser.id,
-          action: 'CONFIGURE_REDIRECT_URLS',
+          action: 'CONFIGURE_PROVIDER',
           entityType: 'Provider',
           entityId: provider.id,
           description: `Configured redirect URLs with CamInvoice: ${redirectUrls.join(', ')}`,
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
         await prisma.auditLog.create({
           data: {
             userId: providerUser.id,
-            action: 'CONFIGURE_REDIRECT_URLS',
+            action: 'CONFIGURE_PROVIDER',
             entityType: 'Provider',
             entityId: provider.id,
             description: `Configured redirect URLs (simulated): ${redirectUrls.join(', ')}`,
