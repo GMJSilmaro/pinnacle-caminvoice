@@ -255,15 +255,16 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
       const data = await response.json()
       const { authUrl, state } = data
 
-      // Open OAuth URL in new window
-      const authWindow = window.open(authUrl, '_blank', 'width=600,height=700')
+      // Prepare listener BEFORE opening popup to avoid race conditions
+      const here = window.location.origin
+      const allowedOrigins = new Set<string>([here])
+      if (here.includes('://localhost:')) allowedOrigins.add(here.replace('://localhost:', '://127.0.0.1:'))
+      if (here.includes('://127.0.0.1:')) allowedOrigins.add(here.replace('://127.0.0.1:', '://localhost:'))
 
-      // Listen for postMessage from the callback page
-      const origin = window.location.origin
       const authTokenPromise = new Promise<{ authToken: string; state?: string } | null>((resolve) => {
         const handler = (event: MessageEvent) => {
           try {
-            if (event.origin !== origin) return
+            if (!allowedOrigins.has(event.origin)) return
             const data = event.data as any
             if (data?.source === 'caminvoice-oauth' && typeof data?.authToken === 'string') {
               window.removeEventListener('message', handler)
@@ -272,12 +273,15 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
           } catch {}
         }
         window.addEventListener('message', handler)
-        // Fallback timeout
+        // Fallback timeout (20s)
         setTimeout(() => {
           window.removeEventListener('message', handler)
           resolve(null)
-        }, 15000) // 15s timeout
+        }, 20000)
       })
+
+      // Open OAuth URL in new window (after listener is attached)
+      const authWindow = window.open(authUrl, '_blank', 'width=600,height=700')
 
       const result = await authTokenPromise
 

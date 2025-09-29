@@ -170,6 +170,36 @@ export async function POST(request: NextRequest) {
         tokenResponse = await callTokenEndpoint(fallbackUrl)
       }
 
+      // If still 404 and domain is e-invoice.gov.kh, try common sandbox API host permutations
+      if (tokenResponse.status === 404) {
+        try {
+          const u = new URL(base)
+          const host = u.hostname
+          const suffix = host.replace(/^([^\.]+\.)?e-invoice\.gov\.kh$/i, 'e-invoice.gov.kh')
+          const candidateBases: string[] = []
+          if (/\.e-invoice\.gov\.kh$/i.test(host)) {
+            // sandbox -> sandbox-api, and api.sandbox
+            if (/^sandbox\./i.test(host)) {
+              candidateBases.push(`${u.protocol}//sandbox-api.${suffix}`)
+              candidateBases.push(`${u.protocol}//api.sandbox.${suffix}`)
+            }
+            // generic -> api.
+            candidateBases.push(`${u.protocol}//api.${suffix}`)
+          }
+
+          for (const altBase of candidateBases) {
+            const altPrimary = `${altBase}/api/v1/auth/authorize/connect`
+            const altFallback = `${altBase}/api/v1/authorize/connect`
+            console.warn(`[CamInvoice OAuth] Trying alternative base host: ${altBase}`)
+            tokenResponse = await callTokenEndpoint(altPrimary)
+            if (tokenResponse.status === 404) {
+              tokenResponse = await callTokenEndpoint(altFallback)
+            }
+            if (tokenResponse.ok || (tokenResponse.status >= 300 && tokenResponse.status < 400)) break
+          }
+        } catch {}
+      }
+
       // Handle potential redirects (e.g., to a portal HTML page)
       if (tokenResponse.status >= 300 && tokenResponse.status < 400) {
         const location = tokenResponse.headers.get('location') || 'unknown'
