@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
       await prisma.auditLog.create({
         data: {
           userId: providerUser.id,
-          action: 'TEST_CONNECTION',
+          action: 'CONFIGURE_PROVIDER',
           entityType: 'Provider',
           entityId: provider.id,
           description: 'Successfully tested connection to CamInvoice API',
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
         await prisma.auditLog.create({
           data: {
             userId: providerUser.id,
-            action: 'TEST_CONNECTION',
+            action: 'CONFIGURE_PROVIDER',
             entityType: 'Provider',
             entityId: provider.id,
             description: 'Successfully tested connection to CamInvoice API (simulated)',
@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
       await prisma.auditLog.create({
         data: {
           userId: providerUser.id,
-          action: 'TEST_CONNECTION_FAILED',
+          action: 'CONFIGURE_PROVIDER',
           entityType: 'Provider',
           entityId: provider.id,
           description: `Failed to test connection to CamInvoice API: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -199,7 +199,7 @@ export async function GET(request: NextRequest) {
     }
 
     const isTokenExpired = provider.tokenExpiresAt && provider.tokenExpiresAt < new Date()
-    const isConnected = provider.isConnectedToCamInv && provider.accessToken && !isTokenExpired
+    const isConnected = provider.isConfigured && provider.accessToken && !isTokenExpired
 
     return NextResponse.json({
       success: true,

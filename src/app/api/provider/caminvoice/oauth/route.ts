@@ -66,12 +66,11 @@ export async function GET(request: NextRequest) {
       { expiresIn: '1h' }
     )
 
-    // Build OAuth authorization URL
-    const authUrl = new URL(`${provider.baseUrl}/oauth/authorize`)
-    authUrl.searchParams.set('response_type', 'code')
+    // Build OAuth authorization URL (CamInvoice uses /connect)
+    const base = provider.baseUrl.replace(/\/+$/, '')
+    const authUrl = new URL(`${base}/connect`)
     authUrl.searchParams.set('client_id', provider.clientId)
-    authUrl.searchParams.set('redirect_uri', provider.redirectUrls[0])
-    authUrl.searchParams.set('scope', 'read write') // Adjust scopes as needed
+    authUrl.searchParams.set('redirect_url', provider.redirectUrls[0])
     authUrl.searchParams.set('state', state)
 
     return NextResponse.json({
@@ -173,7 +172,7 @@ export async function POST(request: NextRequest) {
           accessToken: access_token,
           refreshToken: refresh_token || null,
           tokenExpiresAt,
-          isConnectedToCamInv: true,
+          isConfigured: true,
           updatedAt: new Date(),
         },
       })
@@ -182,7 +181,7 @@ export async function POST(request: NextRequest) {
       await prisma.auditLog.create({
         data: {
           userId: providerUser.id,
-          action: 'OAUTH_AUTHORIZATION',
+          action: 'CONFIGURE_PROVIDER',
           entityType: 'Provider',
           entityId: provider.id,
           description: 'Successfully completed OAuth authorization with CamInvoice',
@@ -212,7 +211,7 @@ export async function POST(request: NextRequest) {
             accessToken: simulatedToken,
             refreshToken: `sim_refresh_${Date.now()}`,
             tokenExpiresAt,
-            isConnectedToCamInv: true,
+            isConfigured: true,
             updatedAt: new Date(),
           },
         })
@@ -221,7 +220,7 @@ export async function POST(request: NextRequest) {
         await prisma.auditLog.create({
           data: {
             userId: providerUser.id,
-            action: 'OAUTH_AUTHORIZATION',
+            action: 'CONFIGURE_PROVIDER',
             entityType: 'Provider',
             entityId: provider.id,
             description: 'Successfully completed OAuth authorization with CamInvoice (simulated)',
