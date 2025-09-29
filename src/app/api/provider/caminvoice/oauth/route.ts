@@ -138,18 +138,42 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Exchange authToken for access/refresh tokens (per CamInvoice docs)
+      // Exchange authToken for access/refresh tokens (per CamInvoice docs).
+      // Some environments may expose a different path; try a few likely candidates.
       const base = provider.baseUrl.replace(/\/+$/, '')
-      const tokenResponse = await fetch(`${base}/api/v1/auth/authorize/connect`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${Buffer.from(`${provider.clientId}:${provider.clientSecret}`).toString('base64')}`,
-        },
-        body: JSON.stringify({
-          auth_token: authToken,
-        }),
-      })
+      const basic = Buffer.from(`${provider.clientId}:${provider.clientSecret}`).toString('base64')
+      const tokenPaths = [
+        '/api/v1/auth/authorize/connect', // per docs
+        '/api/v1/auth/authorize',         // possible variant
+        '/auth/authorize/connect',        // without version prefix
+      ]
+
+      let tokenResponse: Response | null = null
+      const attempted: string[] = []
+      for (const p of tokenPaths) {
+        const url = `${base}${p}`
+        attempted.push(url)
+        try {
+          const resp = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Basic ${basic}`,
+            },
+            body: JSON.stringify({ auth_token: authToken }),
+          })
+          if (resp.status === 404) continue
+          tokenResponse = resp
+          break
+        } catch (_) {
+          // try next
+          continue
+        }
+      }
+
+      if (!tokenResponse) {
+        throw new Error(`Token exchange endpoint not found. Tried: ${attempted.join(', ')}`)
+      }
 
       if (!tokenResponse.ok) {
         const raw = await tokenResponse.text().catch(() => '')
