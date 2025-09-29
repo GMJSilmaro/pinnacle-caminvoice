@@ -70,9 +70,9 @@ export async function POST(request: NextRequest) {
       const base = provider.baseUrl.replace(/\/+$/, '')
       const basic = Buffer.from(`${provider.clientId}:${provider.clientSecret}`).toString('base64')
       const candidatePaths = [
+        '/api/v1/configure/configure-redirect-url', // per docs
         '/api/v1/configure/redirect-url',
         '/api/v1/configure/redirect-urls',
-        '/api/v1/configure/configure-redirect-url',
       ]
 
       let camInvoiceResponse: Response | null = null
@@ -89,8 +89,7 @@ export async function POST(request: NextRequest) {
               'Authorization': `Basic ${basic}`,
             },
             body: JSON.stringify({
-              client_id: provider.clientId,
-              redirect_uris: redirectUrls,
+              white_list_redirect_urls: redirectUrls,
             }),
           })
           if (resp.status === 404) {

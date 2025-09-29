@@ -261,10 +261,10 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
       // For development, simulate OAuth completion after a delay
       setTimeout(async () => {
         try {
-          // Simulate authorization code
-          const simulatedCode = `sim_code_${Date.now()}`
+          // Simulate authToken per CamInvoice docs
+          const simulatedAuthToken = `sim_auth_${Date.now()}`
 
-          // Exchange authorization code for tokens
+          // Exchange authToken for tokens
           const tokenResponse = await fetch('/api/provider/caminvoice/oauth', {
             method: 'POST',
             headers: {
@@ -272,7 +272,7 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
             },
             credentials: 'include',
             body: JSON.stringify({
-              code: simulatedCode,
+              authToken: simulatedAuthToken,
               state: state,
             }),
           })

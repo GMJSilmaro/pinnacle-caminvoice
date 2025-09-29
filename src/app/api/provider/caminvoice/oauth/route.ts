@@ -11,7 +11,7 @@ async function verifyProviderRole(request: NextRequest) {
   }
 
   try {
-    const decoded = jwt.verify(sessionToken, process.env.BETTER_AUTH_SECRET!) as any
+    jwt.verify(sessionToken, process.env.BETTER_AUTH_SECRET!)
     
     // Find session in database
     const session = await prisma.session.findUnique({
@@ -101,26 +101,28 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await request.json()
-    const { code, state } = data
+    const { authToken, state } = data
 
-    if (!code || !state) {
+    if (!authToken) {
       return NextResponse.json(
-        { error: 'Authorization code and state are required' },
+        { error: 'authToken is required' },
         { status: 400 }
       )
     }
 
-    // Verify state parameter
-    try {
-      const stateData = jwt.verify(state, process.env.BETTER_AUTH_SECRET!) as any
-      if (stateData.userId !== providerUser.id) {
-        throw new Error('Invalid state parameter')
+    // Verify state parameter when provided
+    if (state) {
+      try {
+        const stateData = jwt.verify(state, process.env.BETTER_AUTH_SECRET!) as any
+        if (stateData.userId !== providerUser.id) {
+          throw new Error('Invalid state parameter')
+        }
+      } catch (error) {
+        return NextResponse.json(
+          { error: 'Invalid or expired state parameter' },
+          { status: 400 }
+        )
       }
-    } catch (error) {
-      return NextResponse.json(
-        { error: 'Invalid or expired state parameter' },
-        { status: 400 }
-      )
     }
 
     // Get provider configuration
@@ -136,17 +138,16 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Exchange authorization code for access token
-      const tokenResponse = await fetch(`${provider.baseUrl}/oauth/token`, {
+      // Exchange authToken for access/refresh tokens (per CamInvoice docs)
+      const base = provider.baseUrl.replace(/\/+$/, '')
+      const tokenResponse = await fetch(`${base}/api/v1/auth/authorize/connect`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Type': 'application/json',
           'Authorization': `Basic ${Buffer.from(`${provider.clientId}:${provider.clientSecret}`).toString('base64')}`,
         },
-        body: new URLSearchParams({
-          grant_type: 'authorization_code',
-          code,
-          redirect_uri: provider.redirectUrls[0],
+        body: JSON.stringify({
+          auth_token: authToken,
         }),
       })
 
@@ -172,7 +173,7 @@ export async function POST(request: NextRequest) {
       const tokenExpiresAt = expires_in ? new Date(Date.now() + expires_in * 1000) : null
 
       // Update provider with OAuth tokens
-      const updatedProvider = await prisma.provider.update({
+      await prisma.provider.update({
         where: { id: provider.id },
         data: {
           accessToken: access_token,
@@ -201,6 +202,9 @@ export async function POST(request: NextRequest) {
         message: 'OAuth authorization completed successfully',
         tokenType: token_type || 'Bearer',
         expiresAt: tokenExpiresAt?.toISOString(),
+        access_token,
+        refresh_token,
+        business_info: tokenData?.business_info ?? null,
       })
 
     } catch (error) {

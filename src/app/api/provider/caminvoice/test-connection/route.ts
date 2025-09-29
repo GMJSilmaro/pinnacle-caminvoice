@@ -11,7 +11,7 @@ async function verifyProviderRole(request: NextRequest) {
   }
 
   try {
-    const decoded = jwt.verify(sessionToken, process.env.BETTER_AUTH_SECRET!) as any
+    jwt.verify(sessionToken, process.env.BETTER_AUTH_SECRET!)
     
     // Find session in database
     const session = await prisma.session.findUnique({
@@ -55,12 +55,47 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if token is expired
+    // If token is expired, attempt refresh using refresh token per docs
     if (provider.tokenExpiresAt && provider.tokenExpiresAt < new Date()) {
-      return NextResponse.json(
-        { error: 'Access token has expired. Please re-authorize.' },
-        { status: 401 }
-      )
+      if (provider.refreshToken && provider.clientId && provider.clientSecret) {
+        const base = provider.baseUrl.replace(/\/+$/, '')
+        const basic = Buffer.from(`${provider.clientId}:${provider.clientSecret}`).toString('base64')
+        const refreshResp = await fetch(`${base}/api/v1/auth/token`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Basic ${basic}`,
+          },
+          body: JSON.stringify({ refresh_token: provider.refreshToken }),
+        })
+        if (refreshResp.ok) {
+          const contentType = refreshResp.headers.get('content-type') || ''
+          const refreshData: any = contentType.includes('application/json') ? await refreshResp.json().catch(() => null) : null
+          const newToken = refreshData?.token
+          const expireIn = Number(refreshData?.expire_in || 900)
+          if (newToken) {
+            const tokenExpiresAt = new Date(Date.now() + expireIn * 1000)
+            await prisma.provider.update({
+              where: { id: provider.id },
+              data: {
+                accessToken: newToken,
+                tokenExpiresAt,
+                updatedAt: new Date(),
+              },
+            })
+          } else {
+            return NextResponse.json({ error: 'Failed to refresh access token: invalid response' }, { status: 401 })
+          }
+        } else {
+          const raw = await refreshResp.text().catch(() => '')
+          return NextResponse.json({ error: `Failed to refresh access token: ${refreshResp.status}`, details: raw.slice(0, 200) }, { status: 401 })
+        }
+      } else {
+        return NextResponse.json(
+          { error: 'Access token expired and no refresh token available' },
+          { status: 401 }
+        )
+      }
     }
 
     try {
@@ -74,8 +109,43 @@ export async function POST(request: NextRequest) {
       })
 
       if (!testResponse.ok) {
-        const errorData = await testResponse.json().catch(() => ({}))
-        throw new Error(`API test failed: ${testResponse.status} - ${errorData.message || 'Unknown error'}`)
+        if ((testResponse.status === 401 || testResponse.status === 403) && provider.refreshToken && provider.clientId && provider.clientSecret) {
+          // Attempt refresh then retry once
+          const base = provider.baseUrl.replace(/\/+$/, '')
+          const basic = Buffer.from(`${provider.clientId}:${provider.clientSecret}`).toString('base64')
+          const refreshResp = await fetch(`${base}/api/v1/auth/token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Basic ${basic}` },
+            body: JSON.stringify({ refresh_token: provider.refreshToken }),
+          })
+          if (refreshResp.ok) {
+            const ctype = refreshResp.headers.get('content-type') || ''
+            const rdata: any = ctype.includes('application/json') ? await refreshResp.json().catch(() => null) : null
+            const newToken = rdata?.token
+            const expireIn = Number(rdata?.expire_in || 900)
+            if (newToken) {
+              const tokenExpiresAt = new Date(Date.now() + expireIn * 1000)
+              await prisma.provider.update({ where: { id: provider.id }, data: { accessToken: newToken, tokenExpiresAt, updatedAt: new Date() } })
+              // Re-fetch provider to get updated token
+              const refreshed = await prisma.provider.findFirst({ where: { id: provider.id } })
+              const retry = await fetch(`${provider.baseUrl}/api/v1/user/profile`, {
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${refreshed?.accessToken}`, 'Content-Type': 'application/json' },
+              })
+              if (!retry.ok) {
+                const raw = await retry.text().catch(() => '')
+                throw new Error(`API test failed after refresh: ${retry.status} - ${raw.slice(0, 200)}`)
+              }
+              const profileData = await retry.json()
+              // success path after retry
+              await prisma.auditLog.create({ data: { userId: providerUser.id, action: 'CONFIGURE_PROVIDER', entityType: 'Provider', entityId: provider.id, description: 'Successfully tested connection to CamInvoice API', ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown', userAgent: request.headers.get('user-agent') || 'unknown', } })
+              return NextResponse.json({ success: true, message: 'Connection to CamInvoice API successful', data: { status: 'connected', apiVersion: profileData.api_version || 'v1', userProfile: { id: profileData.id, name: profileData.name || 'Unknown', email: profileData.email, }, connectionTime: new Date().toISOString(), }, })
+            }
+          }
+          // fallthrough on refresh failure -> throw original error
+        }
+        const raw = await testResponse.text().catch(() => '')
+        throw new Error(`API test failed: ${testResponse.status} - ${raw.slice(0, 200)}`)
       }
 
       const profileData = await testResponse.json()
