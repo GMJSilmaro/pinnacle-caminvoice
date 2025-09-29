@@ -101,7 +101,8 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await request.json()
-    const { authToken, state } = data
+    const { authToken: bodyAuthToken, code, state } = data
+    const authToken = bodyAuthToken || code
 
     if (!authToken) {
       return NextResponse.json(
