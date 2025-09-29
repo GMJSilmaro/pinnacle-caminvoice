@@ -66,25 +66,58 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Call CamInvoice API to configure redirect URLs
-      const camInvoiceResponse = await fetch(`${provider.baseUrl}/api/v1/configure/configure-redirect-url`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${provider.clientId}:${provider.clientSecret}`, // Basic auth or API key
-        },
-        body: JSON.stringify({
-          client_id: provider.clientId,
-          redirect_uris: redirectUrls,
-        }),
-      })
+      // Call CamInvoice API to configure redirect URLs (try a few likely paths)
+      const base = provider.baseUrl.replace(/\/+$/, '')
+      const basic = Buffer.from(`${provider.clientId}:${provider.clientSecret}`).toString('base64')
+      const candidatePaths = [
+        '/api/v1/configure/redirect-url',
+        '/api/v1/configure/redirect-urls',
+        '/api/v1/configure/configure-redirect-url',
+      ]
 
-      if (!camInvoiceResponse.ok) {
-        const errorData = await camInvoiceResponse.json().catch(() => ({}))
-        throw new Error(`CamInvoice API error: ${camInvoiceResponse.status} - ${errorData.message || 'Unknown error'}`)
+      let camInvoiceResponse: Response | null = null
+      let attempted = [] as string[]
+
+      for (const path of candidatePaths) {
+        const url = `${base}${path}`
+        attempted.push(url)
+        try {
+          const resp = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Basic ${basic}`,
+            },
+            body: JSON.stringify({
+              client_id: provider.clientId,
+              redirect_uris: redirectUrls,
+            }),
+          })
+          if (resp.status === 404) {
+            // Try next candidate
+            continue
+          }
+          camInvoiceResponse = resp
+          break
+        } catch (e) {
+          // Network error, try next
+          continue
+        }
       }
 
-      const camInvoiceData = await camInvoiceResponse.json()
+      if (!camInvoiceResponse) {
+        throw new Error(`CamInvoice configure endpoint not found. Tried: ${attempted.join(', ')}`)
+      }
+
+      if (!camInvoiceResponse.ok) {
+        const raw = await camInvoiceResponse.text().catch(() => '')
+        throw new Error(`CamInvoice API error: ${camInvoiceResponse.status} - ${raw.slice(0, 200)}`)
+      }
+
+      const contentType = camInvoiceResponse.headers.get('content-type') || ''
+      const camInvoiceData = contentType.includes('application/json')
+        ? await camInvoiceResponse.json().catch(() => ({ raw: 'invalid-json' }))
+        : { raw: await camInvoiceResponse.text().catch(() => '') }
 
       // Update provider with configured redirect URLs
       await prisma.provider.update({

@@ -622,12 +622,16 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
 
                     <Group justify="space-between">
                       <Text size="sm" fw={500}>Access Token:</Text>
-                      <Code>{oauthResponse.access_token.substring(0, 20)}...</Code>
+                      {oauthResponse?.access_token
+                        ? <Code>{String(oauthResponse.access_token).substring(0, 20)}...</Code>
+                        : <Text size="xs" c="dimmed">N/A</Text>}
                     </Group>
 
                     <Group justify="space-between">
                       <Text size="sm" fw={500}>Refresh Token:</Text>
-                      <Code>{oauthResponse.refresh_token.substring(0, 20)}...</Code>
+                      {oauthResponse?.refresh_token
+                        ? <Code>{String(oauthResponse.refresh_token).substring(0, 20)}...</Code>
+                        : <Text size="xs" c="dimmed">N/A</Text>}
                     </Group>
 
                     <Text fw={500} size="sm" mt="md">Business Information:</Text>
@@ -635,27 +639,27 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
 
                     <Group justify="space-between">
                       <Text size="sm" fw={500}>Endpoint ID:</Text>
-                      <Text size="sm" ff="monospace">{oauthResponse.business_info.endpoint_id}</Text>
+                      <Text size="sm" ff="monospace">{oauthResponse?.business_info?.endpoint_id ?? '—'}</Text>
                     </Group>
 
                     <Group justify="space-between">
                       <Text size="sm" fw={500}>Company (EN):</Text>
-                      <Text size="sm">{oauthResponse.business_info.company_name_en}</Text>
+                      <Text size="sm">{oauthResponse?.business_info?.company_name_en ?? '—'}</Text>
                     </Group>
 
                     <Group justify="space-between">
                       <Text size="sm" fw={500}>Company (KH):</Text>
-                      <Text size="sm">{oauthResponse.business_info.company_name_kh}</Text>
+                      <Text size="sm">{oauthResponse?.business_info?.company_name_kh ?? ''}</Text>
                     </Group>
 
                     <Group justify="space-between">
                       <Text size="sm" fw={500}>TIN:</Text>
-                      <Text size="sm" ff="monospace">{oauthResponse.business_info.tin}</Text>
+                      <Text size="sm" ff="monospace">{oauthResponse?.business_info?.tin ?? ''}</Text>
                     </Group>
 
                     <Group justify="space-between">
                       <Text size="sm" fw={500}>MOC ID:</Text>
-                      <Text size="sm" ff="monospace">{oauthResponse.business_info.moc_id}</Text>
+                      <Text size="sm" ff="monospace">{oauthResponse?.business_info?.moc_id ?? ''}</Text>
                     </Group>
                   </Stack>
                 </Card>

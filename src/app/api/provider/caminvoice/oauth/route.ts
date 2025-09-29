@@ -151,12 +151,18 @@ export async function POST(request: NextRequest) {
       })
 
       if (!tokenResponse.ok) {
-        const errorData = await tokenResponse.json().catch(() => ({}))
-        throw new Error(`Token exchange failed: ${tokenResponse.status} - ${errorData.error_description || errorData.error || 'Unknown error'}`)
+        const raw = await tokenResponse.text().catch(() => '')
+        throw new Error(`Token exchange failed: ${tokenResponse.status} - ${raw.slice(0, 200)}`)
       }
 
-      const tokenData = await tokenResponse.json()
-      const { access_token, refresh_token, expires_in, token_type } = tokenData
+      const contentType = tokenResponse.headers.get('content-type') || ''
+      if (!contentType.includes('application/json')) {
+        const raw = await tokenResponse.text().catch(() => '')
+        throw new Error(`Unexpected token response content-type: ${contentType} - ${raw.slice(0, 200)}`)
+      }
+
+      const tokenData: any = await tokenResponse.json().catch(() => null)
+      const { access_token, refresh_token, expires_in, token_type } = tokenData || {}
 
       if (!access_token) {
         throw new Error('No access token received')
