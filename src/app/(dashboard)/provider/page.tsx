@@ -261,10 +261,10 @@ export default function ProviderPage() {
         {/* Tab Panels */}
         <Tabs.Panel value="provider" pt="md">
           <ProviderSetup
-            isSetup={stats.isProviderSetup}
+            isSetup={stats.providerConnected}
             onSetupComplete={() => {
               // Refresh stats after setup completion
-              setStats(prev => ({ ...prev, isProviderSetup: true }))
+              setStats(prev => ({ ...prev, providerConnected: true }))
               console.log('Provider setup completed')
             }}
           />

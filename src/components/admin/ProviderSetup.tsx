@@ -258,48 +258,64 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
       // Open OAuth URL in new window
       const authWindow = window.open(authUrl, '_blank', 'width=600,height=700')
 
-      // For development, simulate OAuth completion after a delay
-      setTimeout(async () => {
-        try {
-          // Simulate authToken per CamInvoice docs
-          const simulatedAuthToken = `sim_auth_${Date.now()}`
-
-          // Exchange authToken for tokens
-          const tokenResponse = await fetch('/api/provider/caminvoice/oauth', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            credentials: 'include',
-            body: JSON.stringify({
-              authToken: simulatedAuthToken,
-              state: state,
-            }),
-          })
-
-          if (!tokenResponse.ok) {
-            const errorData = await tokenResponse.json()
-            throw new Error(errorData.error || 'Failed to exchange authorization code')
-          }
-
-          const tokenData = await tokenResponse.json()
-
-          setIsOAuthAuthorized(true)
-          setOauthResponse(tokenData)
-          showNotification.success(
-            'OAuth authorization completed successfully. You can now test the connection.',
-            'Authorization Complete'
-          )
-          authWindow?.close()
-        } catch (error) {
-          console.error('OAuth token exchange failed:', error)
-          showNotification.error(
-            error instanceof Error ? error.message : 'Failed to complete OAuth authorization',
-            'Authorization Failed'
-          )
-          authWindow?.close()
+      // Listen for postMessage from the callback page
+      const origin = window.location.origin
+      const authTokenPromise = new Promise<{ authToken: string; state?: string } | null>((resolve) => {
+        const handler = (event: MessageEvent) => {
+          try {
+            if (event.origin !== origin) return
+            const data = event.data as any
+            if (data?.source === 'caminvoice-oauth' && typeof data?.authToken === 'string') {
+              window.removeEventListener('message', handler)
+              resolve({ authToken: data.authToken, state: data.state })
+            }
+          } catch {}
         }
-      }, 3000) // Simulate 3 second OAuth flow
+        window.addEventListener('message', handler)
+        // Fallback timeout
+        setTimeout(() => {
+          window.removeEventListener('message', handler)
+          resolve(null)
+        }, 15000) // 15s timeout
+      })
+
+      const result = await authTokenPromise
+
+      // Development fallback if no message received
+      const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname)
+      const tokenToUse = result?.authToken || (isLocal ? `sim_auth_${Date.now()}` : '')
+      if (!tokenToUse) {
+        authWindow?.close()
+        throw new Error('Authorization was not completed. No authToken received.')
+      }
+
+      // Exchange authToken for tokens
+      const tokenResponse = await fetch('/api/provider/caminvoice/oauth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          authToken: tokenToUse,
+          state: result?.state || state,
+        }),
+      })
+
+      if (!tokenResponse.ok) {
+        const errorData = await tokenResponse.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to exchange authorization token')
+      }
+
+      const tokenData = await tokenResponse.json()
+
+      setIsOAuthAuthorized(true)
+      setOauthResponse(tokenData)
+      showNotification.success(
+        'OAuth authorization completed successfully. You can now test the connection.',
+        'Authorization Complete'
+      )
+      authWindow?.close()
 
     } catch (error) {
       console.error('OAuth authorization failed:', error)
