@@ -1,4 +1,5 @@
 'use client'
+// TODO: Per STRICT_RULES, this client component should be renamed to ProviderSetup.client.tsx
 
 import {
   Card,
@@ -15,8 +16,8 @@ import {
   Textarea,
   Divider,
   ActionIcon,
-  Tooltip,
   Code,
+  Skeleton,
 } from '@mantine/core'
 import {
   IconShieldCheck,
@@ -27,15 +28,29 @@ import {
   IconX,
   IconEye,
   IconEyeOff,
-  IconCopy,
 } from '@tabler/icons-react'
 import { useState, useEffect } from 'react'
 import { useForm } from '@mantine/form'
 import { showNotification } from '../../utils/notifications'
+import { loadProviderConfig, saveProviderConfig, configureRedirectUrls as configureRedirectUrlsAction, getOAuthUrl, exchangeAuthToken, testConnection as testConnectionAction } from '@/app/provider/actions'
 
 interface ProviderSetupProps {
   isSetup?: boolean
   onSetupComplete?: () => void
+}
+
+interface BusinessInfo {
+  endpoint_id?: string;
+  company_name_en?: string;
+  company_name_kh?: string;
+  tin?: string;
+  moc_id?: string;
+}
+
+interface OAuthResponse {
+  access_token?: string;
+  refresh_token?: string;
+  business_info?: BusinessInfo;
 }
 
 export default function ProviderSetup({ isSetup = false, onSetupComplete }: ProviderSetupProps) {
@@ -47,29 +62,27 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
   const [isRedirectConfigured, setIsRedirectConfigured] = useState(false)
   const [isOAuthAuthorized, setIsOAuthAuthorized] = useState(false)
   const [isConnectionTested, setIsConnectionTested] = useState(false)
-  const [oauthResponse, setOauthResponse] = useState<any>(null)
-  const [providerConfig, setProviderConfig] = useState<any>(null)
+  const [oauthResponse, setOauthResponse] = useState<OAuthResponse | null>(null)
+
   const [configLoading, setConfigLoading] = useState(true)
 
   // Load existing provider configuration
   useEffect(() => {
-    const loadProviderConfig = async () => {
+    const initLoad = async () => {
       try {
-        const response = await fetch('/api/provider/setup', {
-          credentials: 'include',
-        })
+        const result: any = await loadProviderConfig()
 
-        if (response.ok) {
-          const data = await response.json()
+        if (result?.success) {
+          const data = result
           if (data.success && data.provider) {
-            setProviderConfig(data.provider)
+
             // Update form with existing values
             form.setValues({
-              clientId: data.provider.clientId || '',
-              clientSecret: data.provider.clientSecret || '',
-              baseUrl: data.provider.baseUrl || 'https://sandbox.e-invoice.gov.kh',
-              description: data.provider.description || '',
-              redirectUrls: data.provider.redirectUrls || ['http://localhost:3001/auth/callback'],
+              clientId: data.provider.clientId,
+              clientSecret: data.provider.clientSecret,
+              baseUrl: data.provider.baseUrl,
+              description: data.provider.description,
+              redirectUrls: data.provider.redirectUrls,
             })
 
             // Update setup states based on existing configuration
@@ -89,15 +102,15 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
       }
     }
 
-    loadProviderConfig()
+    initLoad()
   }, [])
 
   const form = useForm({
     initialValues: {
-      clientId: '259c90b507469ea3ae492800bd1fae48',
-      clientSecret: '78865a9f4eaa45aedb21de767bd883112027a403bc1921c9bb811ff5f36dd2e0',
+      clientId: '',
+      clientSecret: '',
       baseUrl: 'https://sandbox.e-invoice.gov.kh',
-      description: 'Pixel Pinnacle-WG CamInvoice Integration',
+      description: '',
       redirectUrls: ['http://localhost:3001/auth/callback'],
     },
     validate: {
@@ -140,44 +153,16 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
     setConfigureLoading(true)
     try {
       // First save the provider configuration
-      const saveResponse = await fetch('/api/provider/setup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          clientId: form.values.clientId,
-          clientSecret: form.values.clientSecret,
-          baseUrl: form.values.baseUrl,
-          description: form.values.description,
-          redirectUrls: form.values.redirectUrls,
-        }),
+      await saveProviderConfig({
+        clientId: form.values.clientId,
+        clientSecret: form.values.clientSecret,
+        baseUrl: form.values.baseUrl,
+        description: form.values.description,
+        redirectUrls: form.values.redirectUrls,
       })
 
-      if (!saveResponse.ok) {
-        const errorData = await saveResponse.json()
-        throw new Error(errorData.error || 'Failed to save provider configuration')
-      }
-
-      // Then configure redirect URLs with CamInvoice
-      const configResponse = await fetch('/api/provider/caminvoice/configure-redirect', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          redirectUrls: form.values.redirectUrls,
-        }),
-      })
-
-      if (!configResponse.ok) {
-        const errorData = await configResponse.json()
-        throw new Error(errorData.error || 'Failed to configure redirect URLs')
-      }
-
-      const configData = await configResponse.json()
+      // Then configure redirect URLs via server action
+      await configureRedirectUrlsAction({ redirectUrls: form.values.redirectUrls })
 
       setIsRedirectConfigured(true)
       showNotification.success(
@@ -207,20 +192,7 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
 
     setTestLoading(true)
     try {
-      const response = await fetch('/api/provider/caminvoice/test-connection', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Connection test failed')
-      }
-
-      const data = await response.json()
+      const data = await testConnectionAction()
 
       setIsConnectionTested(true)
       showNotification.success(
@@ -241,19 +213,8 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
 
   const handleOAuthAuthorization = async () => {
     try {
-      // Get OAuth authorization URL from our API
-      const response = await fetch('/api/provider/caminvoice/oauth', {
-        method: 'GET',
-        credentials: 'include',
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to get OAuth URL')
-      }
-
-      const data = await response.json()
-      const { authUrl, state } = data
+      // Get OAuth authorization URL via server action
+      const { authUrl, state } = await getOAuthUrl()
 
       // Prepare listener BEFORE opening popup to avoid race conditions
       const here = window.location.origin
@@ -294,24 +255,7 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
       }
 
       // Exchange authToken for tokens
-      const tokenResponse = await fetch('/api/provider/caminvoice/oauth', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          authToken: tokenToUse,
-          state: result?.state || state,
-        }),
-      })
-
-      if (!tokenResponse.ok) {
-        const errorData = await tokenResponse.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to exchange authorization token')
-      }
-
-      const tokenData = await tokenResponse.json()
+      const tokenData = await exchangeAuthToken({ authToken: tokenToUse, state: result?.state || state })
 
       setIsOAuthAuthorized(true)
       setOauthResponse(tokenData)
@@ -333,11 +277,13 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
   const handleSubmit = async (values: typeof form.values) => {
     setIsLoading(true)
     try {
-      // TODO: Implement server action to save provider settings
-      console.log('Saving provider settings:', values)
-
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      await saveProviderConfig({
+        clientId: values.clientId,
+        clientSecret: values.clientSecret,
+        baseUrl: values.baseUrl,
+        description: values.description,
+        redirectUrls: values.redirectUrls,
+      })
 
       showNotification.success(
         'CamInvoice Service Provider configuration has been saved successfully. You can now manage tenant connections.',
@@ -355,19 +301,21 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
     }
   }
 
-  const generateRandomKey = (length: number) => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-    let result = ''
-    for (let i = 0; i < length; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length))
-    }
-    return result
+
+
+  if (configLoading) {
+    return (
+      <Card withBorder>
+        <Stack gap="md">
+          <Skeleton height={22} />
+          <Skeleton height={22} />
+          <Skeleton height={220} />
+        </Stack>
+      </Card>
+    )
   }
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text)
-    showNotification.success('Copied to clipboard', 'Success')
-  }
+
 
   if (isSetup) {
     return (
@@ -386,7 +334,7 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
           </Group>
 
           <Alert color="green" icon={<IconShieldCheck size={16} />}>
-            Your service provider credentials are securely stored and encrypted. 
+            Your service provider credentials are securely stored and encrypted.
             All merchant tokens will be encrypted using your configured encryption key.
           </Alert>
 
@@ -415,7 +363,7 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
 
         <Alert color="blue" icon={<IconInfoCircle size={16} />}>
           <Text fw={500} mb="xs">Important Note:</Text>
-          This is a <strong>one-time setup</strong> as advised by the Cambodia Government. 
+          This is a <strong>one-time setup</strong> as advised by the Cambodia Government.
           Only Service Providers can configure these settings, but they can be used globally by all end users.
         </Alert>
 
@@ -665,17 +613,17 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
 
                     <Group justify="space-between">
                       <Text size="sm" fw={500}>Company (KH):</Text>
-                      <Text size="sm">{oauthResponse?.business_info?.company_name_kh ?? ''}</Text>
+                      <Text size="sm">{oauthResponse?.business_info?.company_name_kh ?? '—'}</Text>
                     </Group>
 
                     <Group justify="space-between">
                       <Text size="sm" fw={500}>TIN:</Text>
-                      <Text size="sm" ff="monospace">{oauthResponse?.business_info?.tin ?? ''}</Text>
+                      <Text size="sm" ff="monospace">{oauthResponse?.business_info?.tin ?? '—'}</Text>
                     </Group>
 
                     <Group justify="space-between">
                       <Text size="sm" fw={500}>MOC ID:</Text>
-                      <Text size="sm" ff="monospace">{oauthResponse?.business_info?.moc_id ?? ''}</Text>
+                      <Text size="sm" ff="monospace">{oauthResponse?.business_info?.moc_id ?? '—'}</Text>
                     </Group>
                   </Stack>
                 </Card>
@@ -724,7 +672,7 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
                   const step2Errors = validateStep2()
                   if (Object.keys(step2Errors).length === 0) {
                     setCurrentStep(currentStep + 1)
-                    showNotification.info('Redirect URLs configured. Review your settings.', 'Step 2 Complete')
+                    showNotification.info('Redirect URLs validated. Review your settings.', 'Step 2 Complete')
                   } else {
                     // Set form errors for display
                     form.setErrors(step2Errors)
