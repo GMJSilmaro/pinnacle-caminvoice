@@ -146,18 +146,29 @@ export async function POST(request: NextRequest) {
       // Exchange authToken for access/refresh tokens (per CamInvoice docs).
       const base = provider.baseUrl.replace(/\/+$/, '')
       const basic = Buffer.from(`${provider.clientId}:${provider.clientSecret}`).toString('base64')
-      const url = `${base}/api/v1/auth/authorize/connect`
+      const primaryUrl = `${base}/api/v1/auth/authorize/connect`
 
-      const tokenResponse = await fetch(url, {
-        method: 'POST',
-        redirect: 'manual',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': `Basic ${basic}`,
-        },
-        body: JSON.stringify({ auth_token: authToken }),
-      })
+      async function callTokenEndpoint(targetUrl: string) {
+        return fetch(targetUrl, {
+          method: 'POST',
+          redirect: 'manual',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': `Basic ${basic}`,
+          },
+          body: JSON.stringify({ auth_token: authToken }),
+        })
+      }
+
+      let tokenResponse = await callTokenEndpoint(primaryUrl)
+
+      // 404-only fallback for sandbox variant without /auth prefix
+      if (tokenResponse.status === 404) {
+        const fallbackUrl = `${base}/api/v1/authorize/connect`
+        console.warn(`[CamInvoice OAuth] Primary token endpoint 404. Trying fallback: ${fallbackUrl}`)
+        tokenResponse = await callTokenEndpoint(fallbackUrl)
+      }
 
       // Handle potential redirects (e.g., to a portal HTML page)
       if (tokenResponse.status >= 300 && tokenResponse.status < 400) {

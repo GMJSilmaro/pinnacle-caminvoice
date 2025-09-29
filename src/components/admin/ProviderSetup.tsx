@@ -69,7 +69,7 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
               clientSecret: data.provider.clientSecret || '',
               baseUrl: data.provider.baseUrl || 'https://sandbox.e-invoice.gov.kh',
               description: data.provider.description || '',
-              redirectUrls: data.provider.redirectUrls || ['https://localhost:3001/auth/callback'],
+              redirectUrls: data.provider.redirectUrls || ['http://localhost:3001/auth/callback'],
             })
 
             // Update setup states based on existing configuration
@@ -98,7 +98,7 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
       clientSecret: '78865a9f4eaa45aedb21de767bd883112027a403bc1921c9bb811ff5f36dd2e0',
       baseUrl: 'https://sandbox.e-invoice.gov.kh',
       description: 'Pixel Pinnacle-WG CamInvoice Integration',
-      redirectUrls: ['https://localhost:3001/auth/callback'],
+      redirectUrls: ['http://localhost:3001/auth/callback'],
     },
     validate: {
       clientId: (value) => (value.length < 1 ? 'Client ID is required' : null),
@@ -425,7 +425,6 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
               <TextInput
                 label="Client ID *"
                 description="Your CamInvoice Service Provider Client ID"
-                placeholder="admin@vitar.com"
                 required
                 {...form.getInputProps('clientId')}
               />
@@ -433,7 +432,6 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
               <PasswordInput
                 label="Client Secret *"
                 description="Your CamInvoice Service Provider Client Secret"
-                placeholder="••••••••••••••••"
                 required
                 rightSection={
                   <ActionIcon
@@ -450,7 +448,6 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
               <TextInput
                 label="Base URL *"
                 description="CamInvoice API Base URL"
-                placeholder="https://sandbox.e-invoice.gov.kh"
                 required
                 {...form.getInputProps('baseUrl')}
               />
@@ -488,7 +485,6 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
                 {form.values.redirectUrls.map((url, index) => (
                   <Group key={index} mb="sm">
                     <TextInput
-                      placeholder="https://your-domain.com/auth/callback"
                       style={{ flex: 1 }}
                       value={url}
                       onChange={(e) => {
