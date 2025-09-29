@@ -96,7 +96,7 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
     initialValues: {
       clientId: '259c90b507469ea3ae492800bd1fae48',
       clientSecret: '78865a9f4eaa45aedb21de767bd883112027a403bc1921c9bb811ff5f36dd2e0',
-      baseUrl: 'https://sandbox.e-invoice.gov.kh/',
+      baseUrl: 'https://sandbox.e-invoice.gov.kh',
       description: 'Pixel Pinnacle-WG CamInvoice Integration',
       redirectUrls: ['http://localhost:3000/auth/callback'],
     },

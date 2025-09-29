@@ -71,6 +71,8 @@ export async function POST(request: NextRequest) {
       const basic = Buffer.from(`${provider.clientId}:${provider.clientSecret}`).toString('base64')
       const candidatePaths = [
         '/api/v1/configure/configure-redirect-url', // per docs
+        '/api/v1/configure/redirect-url',          // possible variant
+        '/configure/configure-redirect-url',        // without version prefix
       ]
 
       let camInvoiceResponse: Response | null = null
