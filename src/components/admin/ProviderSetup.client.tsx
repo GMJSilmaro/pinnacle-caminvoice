@@ -167,7 +167,7 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
 
       setIsRedirectConfigured(true)
       showNotification.success(
-        'Redirect URLs have been successfully configured with CamInvoice.',
+        'Redirect URLs have been successfully configured with CamInvoice. You can now proceed with OAuth authorization.',
         'URLs Configured'
       )
     } catch (error) {
@@ -213,6 +213,14 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
   }
 
   const handleOAuthAuthorization = async () => {
+    if (!isRedirectConfigured) {
+      showNotification.error(
+        'Please configure redirect URLs first before attempting OAuth authorization.',
+        'Configuration Required'
+      )
+      return
+    }
+
     try {
       // Get OAuth authorization URL via server action
       const { authUrl, state } = await getOAuthUrl()

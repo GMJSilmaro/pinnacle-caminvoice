@@ -70,20 +70,59 @@ export async function saveProviderConfig(input: {
   return { success: true, providerId: provider.id }
 }
 
-// Configure redirect URLs with CamInvoice (DB update + TODO: remote call when confirmed)
+// Configure redirect URLs with CamInvoice API (whitelist URLs before OAuth can work)
 export async function configureRedirectUrls(params: { redirectUrls: string[] }) {
   const provider = await prisma.provider.findFirst({ where: { isActive: true } })
   if (!provider) throw new Error("Provider not configured")
+  if (!provider.clientId || !provider.clientSecret) throw new Error("Provider missing clientId or clientSecret")
 
-  await prisma.provider.update({
-    where: { id: provider.id },
-    data: { redirectUrls: params.redirectUrls, updatedAt: new Date() },
-  })
+  const base = sanitizeBaseUrl(provider.baseUrl)
+  const configEndpoint = `${base}/api/v1/configure/configure-redirect-url`
 
-  // TODO: If official endpoint exists, call it here with provider credentials
-  // e.g., await fetch(`${base}/api/v1/configure/configure-redirect-url`, ...)
+  // Debug logging
+  console.log("🔧 Configuring Redirect URLs:")
+  console.log("  Endpoint:", configEndpoint)
+  console.log("  Redirect URLs:", params.redirectUrls)
 
-  return { success: true }
+  // Configure redirect URLs with CamInvoice API according to documentation
+  const basic = Buffer.from(`${provider.clientId}:${provider.clientSecret}`).toString("base64")
+
+  try {
+    const configResponse = await fetch(configEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Basic ${basic}`
+      },
+      body: JSON.stringify({
+        white_list_redirect_urls: params.redirectUrls
+      }),
+    })
+
+    console.log("  Response Status:", configResponse.status)
+    console.log("  Response Headers:", Object.fromEntries(configResponse.headers.entries()))
+
+    if (!configResponse.ok) {
+      const raw = await configResponse.text().catch(() => "")
+      console.log("  Error Response Body:", raw.slice(0, 500))
+      throw new Error(`Failed to configure redirect URLs: ${configResponse.status} - ${raw.slice(0, 200)}`)
+    }
+
+    const responseData = await configResponse.json().catch(() => ({}))
+    console.log("✅ Redirect URLs configured successfully:", responseData)
+
+    // Update database after successful API call
+    await prisma.provider.update({
+      where: { id: provider.id },
+      data: { redirectUrls: params.redirectUrls, updatedAt: new Date() },
+    })
+
+    return { success: true, data: responseData }
+
+  } catch (error) {
+    console.error("❌ Redirect URL configuration error:", error)
+    throw error
+  }
 }
 
 // Generate OAuth authorization URL (CamInvoice Authorization Code flow)
@@ -112,32 +151,108 @@ export async function exchangeAuthToken(input: { authToken: string; state?: stri
   if (!provider) throw new Error("Provider not configured")
 
   const base = sanitizeBaseUrl(provider.baseUrl)
+  const tokenEndpoint = `${base}/api/v1/auth/authorize/connect`
+
+  // Debug logging
+  console.log("🔍 OAuth Token Exchange Debug:")
+  console.log("  Provider Base URL:", provider.baseUrl)
+  console.log("  Sanitized Base URL:", base)
+  console.log("  Token Endpoint:", tokenEndpoint)
+  console.log("  Auth Token:", input.authToken?.substring(0, 20) + "...")
 
   // Step 3: Token Request according to CamInvoice documentation
   const basic = Buffer.from(`${provider.clientId}:${provider.clientSecret}`).toString("base64")
 
-  const tokenResponse = await fetch(`${base}/api/v1/auth/authorize/connect`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Basic ${basic}`
-    },
-    body: JSON.stringify({
-      auth_token: input.authToken
-    }),
-  })
+  try {
+    const tokenResponse = await fetch(tokenEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Basic ${basic}`
+      },
+      body: JSON.stringify({
+        auth_token: input.authToken
+      }),
+    })
 
-  if (!tokenResponse.ok) {
-    const raw = await tokenResponse.text().catch(() => "")
-    throw new Error(`Token exchange failed: ${tokenResponse.status} - ${raw.slice(0, 200)}`)
+    console.log("  Response Status:", tokenResponse.status)
+    console.log("  Response Headers:", Object.fromEntries(tokenResponse.headers.entries()))
+
+    if (!tokenResponse.ok) {
+      const raw = await tokenResponse.text().catch(() => "")
+      console.log("  Error Response Body:", raw.slice(0, 500))
+
+      // Try alternative endpoints if 404
+      if (tokenResponse.status === 404) {
+        console.log("🔄 Trying alternative endpoints...")
+
+        // Try without /auth/ prefix
+        const altEndpoint1 = `${base}/api/v1/authorize/connect`
+        console.log("  Trying:", altEndpoint1)
+
+        const altResponse1 = await fetch(altEndpoint1, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Basic ${basic}`
+          },
+          body: JSON.stringify({
+            auth_token: input.authToken
+          }),
+        })
+
+        if (altResponse1.ok) {
+          console.log("✅ Alternative endpoint 1 worked!")
+          const tokenData = await altResponse1.json()
+          return await processTokenResponse(tokenData, provider)
+        }
+
+        // Try with /oauth/ prefix
+        const altEndpoint2 = `${base}/oauth/token`
+        console.log("  Trying:", altEndpoint2)
+
+        const altResponse2 = await fetch(altEndpoint2, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Basic ${basic}`
+          },
+          body: JSON.stringify({
+            auth_token: input.authToken
+          }),
+        })
+
+        if (altResponse2.ok) {
+          console.log("✅ Alternative endpoint 2 worked!")
+          const tokenData = await altResponse2.json()
+          return await processTokenResponse(tokenData, provider)
+        }
+      }
+
+      throw new Error(`Token exchange failed: ${tokenResponse.status} - ${raw.slice(0, 200)}`)
+    }
+
+    const tokenData: any = await tokenResponse.json()
+    return await processTokenResponse(tokenData, provider)
+
+  } catch (error) {
+    console.error("❌ Token exchange error:", error)
+    throw error
   }
+}
 
-  const tokenData: any = await tokenResponse.json()
+// Helper function to process token response
+async function processTokenResponse(tokenData: any, provider: any) {
   const { access_token, refresh_token, business_info } = tokenData || {}
 
   if (!access_token) {
     throw new Error("No access token received from CamInvoice")
   }
+
+  console.log("✅ Token exchange successful!")
+  console.log("  Access Token:", access_token?.substring(0, 20) + "...")
+  console.log("  Refresh Token:", refresh_token ? refresh_token.substring(0, 20) + "..." : "None")
+  console.log("  Business Info:", business_info ? "Present" : "None")
 
   // Store the tokens and business info in the database
   await prisma.provider.update({
