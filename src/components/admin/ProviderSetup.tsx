@@ -67,9 +67,9 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
             form.setValues({
               clientId: data.provider.clientId || '',
               clientSecret: data.provider.clientSecret || '',
-              baseUrl: data.provider.baseUrl || 'https://api.caminvoice.gov.kh',
+              baseUrl: data.provider.baseUrl || 'https://sandbox.e-invoice.gov.kh',
               description: data.provider.description || '',
-              redirectUrls: data.provider.redirectUrls || ['https://your-domain.com/auth/callback'],
+              redirectUrls: data.provider.redirectUrls || ['https://localhost:3001/auth/callback'],
             })
 
             // Update setup states based on existing configuration
@@ -98,7 +98,7 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
       clientSecret: '78865a9f4eaa45aedb21de767bd883112027a403bc1921c9bb811ff5f36dd2e0',
       baseUrl: 'https://sandbox.e-invoice.gov.kh',
       description: 'Pixel Pinnacle-WG CamInvoice Integration',
-      redirectUrls: ['http://localhost:3000/auth/callback'],
+      redirectUrls: ['https://localhost:3001/auth/callback'],
     },
     validate: {
       clientId: (value) => (value.length < 1 ? 'Client ID is required' : null),
@@ -450,7 +450,7 @@ export default function ProviderSetup({ isSetup = false, onSetupComplete }: Prov
               <TextInput
                 label="Base URL *"
                 description="CamInvoice API Base URL"
-                placeholder="https://api.caminvoice.gov.kh"
+                placeholder="https://sandbox.e-invoice.gov.kh"
                 required
                 {...form.getInputProps('baseUrl')}
               />

@@ -38,7 +38,7 @@ export default function CamInvoiceAuthCallback() {
           // Fallback: directly exchange and then redirect
           const resp = await fetch("/api/provider/caminvoice/oauth", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", "Accept": "application/json" },
             credentials: "include",
             body: JSON.stringify({ authToken, state }),
           })

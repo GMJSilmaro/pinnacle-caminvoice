@@ -86,6 +86,7 @@ export async function POST(request: NextRequest) {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'Accept': 'application/json',
               'Authorization': `Basic ${basic}`,
             },
             body: JSON.stringify({
@@ -185,9 +186,9 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json(
-        { 
+        {
           error: 'Failed to configure redirect URLs with CamInvoice',
-          details: error instanceof Error ? error.message : 'Unknown error'
+          details: process.env.NODE_ENV !== 'production' ? (error instanceof Error ? error.message : 'Unknown error') : undefined,
         },
         { status: 500 }
       )

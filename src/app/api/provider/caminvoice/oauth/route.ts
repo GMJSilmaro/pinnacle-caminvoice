@@ -111,19 +111,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verify state parameter when provided
-    if (state) {
-      try {
-        const stateData = jwt.verify(state, process.env.BETTER_AUTH_SECRET!) as any
-        if (stateData.userId !== providerUser.id) {
-          throw new Error('Invalid state parameter')
-        }
-      } catch (error) {
-        return NextResponse.json(
-          { error: 'Invalid or expired state parameter' },
-          { status: 400 }
-        )
+    // Require and verify state parameter to prevent CSRF
+    if (!state) {
+      return NextResponse.json(
+        { error: 'state is required' },
+        { status: 400 }
+      )
+    }
+    try {
+      const stateData = jwt.verify(state, process.env.BETTER_AUTH_SECRET!) as any
+      if (stateData.userId !== providerUser.id) {
+        throw new Error('Invalid state parameter')
       }
+    } catch (error) {
+      return NextResponse.json(
+        { error: 'Invalid or expired state parameter' },
+        { status: 400 }
+      )
     }
 
     // Get provider configuration
@@ -140,40 +144,25 @@ export async function POST(request: NextRequest) {
 
     try {
       // Exchange authToken for access/refresh tokens (per CamInvoice docs).
-      // Some environments may expose a different path; try a few likely candidates.
       const base = provider.baseUrl.replace(/\/+$/, '')
       const basic = Buffer.from(`${provider.clientId}:${provider.clientSecret}`).toString('base64')
-      const tokenPaths = [
-        '/api/v1/auth/authorize/connect', // per docs
-        '/api/v1/auth/authorize',         // possible variant
-        '/auth/authorize/connect',        // without version prefix
-      ]
+      const url = `${base}/api/v1/auth/authorize/connect`
 
-      let tokenResponse: Response | null = null
-      const attempted: string[] = []
-      for (const p of tokenPaths) {
-        const url = `${base}${p}`
-        attempted.push(url)
-        try {
-          const resp = await fetch(url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Basic ${basic}`,
-            },
-            body: JSON.stringify({ auth_token: authToken }),
-          })
-          if (resp.status === 404) continue
-          tokenResponse = resp
-          break
-        } catch (_) {
-          // try next
-          continue
-        }
-      }
+      const tokenResponse = await fetch(url, {
+        method: 'POST',
+        redirect: 'manual',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Basic ${basic}`,
+        },
+        body: JSON.stringify({ auth_token: authToken }),
+      })
 
-      if (!tokenResponse) {
-        throw new Error(`Token exchange endpoint not found. Tried: ${attempted.join(', ')}`)
+      // Handle potential redirects (e.g., to a portal HTML page)
+      if (tokenResponse.status >= 300 && tokenResponse.status < 400) {
+        const location = tokenResponse.headers.get('location') || 'unknown'
+        throw new Error(`Token endpoint redirected with status ${tokenResponse.status} to ${location}. Check baseUrl domain and path.`)
       }
 
       if (!tokenResponse.ok) {
@@ -222,14 +211,12 @@ export async function POST(request: NextRequest) {
         },
       })
 
+      // Do not echo tokens back to the client
       return NextResponse.json({
         success: true,
         message: 'OAuth authorization completed successfully',
         tokenType: token_type || 'Bearer',
         expiresAt: tokenExpiresAt?.toISOString(),
-        access_token,
-        refresh_token,
-        business_info: tokenData?.business_info ?? null,
       })
 
     } catch (error) {
@@ -273,9 +260,9 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json(
-        { 
+        {
           error: 'OAuth authorization failed',
-          details: error instanceof Error ? error.message : 'Unknown error'
+          details: process.env.NODE_ENV !== 'production' ? (error instanceof Error ? error.message : 'Unknown error') : undefined,
         },
         { status: 500 }
       )
