@@ -114,14 +114,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if provider already exists
-    let provider = await prisma.provider.findFirst({
+    let existingProvider = await prisma.provider.findFirst({
       where: { isActive: true },
     })
 
-    if (provider) {
+    let provider
+    let isUpdate = false
+
+    if (existingProvider) {
       // Update existing provider
+      isUpdate = true
       provider = await prisma.provider.update({
-        where: { id: provider.id },
+        where: { id: existingProvider.id },
         data: {
           clientId,
           clientSecret, // In production, this should be encrypted
@@ -158,10 +162,10 @@ export async function POST(request: NextRequest) {
     await prisma.auditLog.create({
       data: {
         userId: providerUser.id,
-        action: provider ? 'UPDATE_PROVIDER_CONFIG' : 'CREATE_PROVIDER_CONFIG',
+        action: 'CONFIGURE_PROVIDER',
         entityType: 'Provider',
         entityId: provider.id,
-        description: `${provider ? 'Updated' : 'Created'} CamInvoice provider configuration`,
+        description: `${isUpdate ? 'Updated' : 'Created'} CamInvoice provider configuration`,
         ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
         userAgent: request.headers.get('user-agent') || 'unknown',
       },
@@ -239,7 +243,7 @@ export async function PUT(request: NextRequest) {
     await prisma.auditLog.create({
       data: {
         userId: providerUser.id,
-        action: 'UPDATE_OAUTH_TOKENS',
+        action: 'CONFIGURE_PROVIDER',
         entityType: 'Provider',
         entityId: provider.id,
         description: 'Updated CamInvoice OAuth tokens',
