@@ -9,6 +9,7 @@
     "clean": "rm -rf .next node_modules/.cache",
     "clean:cache": "rm -rf .next",
     "dev:clean": "pnpm run clean:cache && pnpm run dev",
+    "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
