@@ -228,7 +228,8 @@ export const DEFAULT_TAX_RATES = {
 
 // Invoice type codes
 export const INVOICE_TYPE_CODES = {
-  STANDARD: '388',
+  COMMERCIAL_INVOICE: '380',
+  TAX_INVOICE: '388',
   CREDIT_NOTE: '381',
   DEBIT_NOTE: '383'
 }

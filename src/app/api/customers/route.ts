@@ -8,6 +8,9 @@ import {
   createErrorResponse,
 } from '../../../lib/tenant-middleware'
 import { logAudit } from '../../../lib/audit'
+import { ensureProviderAccessToken } from '../../../lib/providerToken'
+import { getMemberDetailByEndpoint } from '../../../lib/caminvoice'
+
 
 function toInt(value: string | null, fallback: number) {
   const n = Number(value)
@@ -28,13 +31,14 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search')?.trim()
     const status = searchParams.get('status')?.toUpperCase()
 
-    const where = {
+    const where: any = {
       ...getTenantFilter(user),
       ...(status ? { status } : {}),
       ...(search
         ? {
             OR: [
               { name: { contains: search, mode: 'insensitive' as const } },
+              { businessName: { contains: search, mode: 'insensitive' as const } },
               { email: { contains: search, mode: 'insensitive' as const } },
               { taxId: { contains: search, mode: 'insensitive' as const } },
             ],
@@ -42,9 +46,10 @@ export async function GET(request: NextRequest) {
         : {}),
     }
 
+    const client = prisma as any
     const [total, customers] = await Promise.all([
-      prisma.customer.count({ where }),
-      prisma.customer.findMany({
+      client.customer.count({ where }),
+      client.customer.findMany({
         where,
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
@@ -55,25 +60,61 @@ export async function GET(request: NextRequest) {
           name: true,
           businessName: true,
           taxId: true,
+          registrationNumber: true,
           email: true,
           phone: true,
           address: true,
           city: true,
+          postalCode: true,
           country: true,
           status: true,
+          camInvoiceStatus: true,
+
           createdAt: true,
           updatedAt: true,
         },
       }),
     ])
 
+    // Aggregate invoice counts and revenue per customer for the page results
+    const customerIds = customers.map((c: any) => c.id)
+    let aggregates: Record<string, { invoiceCount: number; totalRevenue: number }> = {}
+    if (customerIds.length > 0) {
+      const grouped = await prisma.invoice.groupBy({
+        by: ['customerId'],
+        _count: { _all: true },
+        _sum: { totalAmount: true },
+        where: { customerId: { in: customerIds } },
+      })
+      aggregates = Object.fromEntries(
+        grouped.map((g: any) => [
+          g.customerId,
+          { invoiceCount: Number(g._count?._all || 0), totalRevenue: Number(g._sum?.totalAmount || 0) },
+        ])
+      )
+    }
+
+    const enriched = customers.map((c: any) => ({
+      ...c,
+      invoiceCount: aggregates[c.id]?.invoiceCount || 0,
+      totalRevenue: aggregates[c.id]?.totalRevenue || 0,
+    }))
+
+    // Fetch tenant currency to help UI display amounts consistently
+    let currencyCode: string | undefined
+    try {
+      const tenant = user.tenantId ? await prisma.tenant.findUnique({ where: { id: user.tenantId }, select: { currency: true } }) : null
+      currencyCode = tenant?.currency
+    } catch {}
+
     return NextResponse.json({
       success: true,
-      customers,
+      customers: enriched,
       page,
       pageSize,
       total,
       totalPages: Math.ceil(total / pageSize),
+      currency: currencyCode,
     })
   } catch (error) {
     console.error('Customers GET error:', error)
@@ -94,6 +135,7 @@ export async function POST(request: NextRequest) {
       name,
       businessName,
       taxId,
+      tin,
       registrationNumber,
       email,
       phone,
@@ -104,10 +146,12 @@ export async function POST(request: NextRequest) {
       country,
       status,
       tenantId,
+      camInvoiceEndpointId,
+      companyNameKh,
     } = body || {}
 
-    if (!name || !address || !city) {
-      return NextResponse.json({ error: 'Name, address and city are required' }, { status: 400 })
+    if (!name || !businessName || !(taxId || camInvoiceEndpointId) || !address || !city) {
+      return NextResponse.json({ error: 'Name, business name, endpoint ID (as tax ID), address and city are required' }, { status: 400 })
     }
 
     const targetTenantId =
@@ -116,14 +160,34 @@ export async function POST(request: NextRequest) {
     if (!targetTenantId) {
       return NextResponse.json({ error: 'No tenant specified' }, { status: 400 })
     }
+    // Derive CamInvoice status during creation
+    let camInvoiceStatusFinal: 'registered' | 'not_registered' | 'pending' | 'unknown' = 'unknown'
+    const endpointToValidate = camInvoiceEndpointId || taxId || null
+    if (endpointToValidate) {
+      try {
+        const tokenInfo = await ensureProviderAccessToken({ earlyRefreshSeconds: 60 })
+        const detail = await getMemberDetailByEndpoint({
+          accessToken: tokenInfo.accessToken,
+          endpointId: endpointToValidate,
+          baseUrl: tokenInfo.baseUrl || undefined,
+        })
+        camInvoiceStatusFinal = detail && (detail as any).endpoint_id ? 'registered' : 'not_registered'
+      } catch {
+        camInvoiceStatusFinal = 'unknown'
+      }
+    }
 
-    const created = await prisma.customer.create({
-      data: {
+
+    const client = prisma as any
+    const created = await client.customer.create({
+      data: ({
         tenantId: targetTenantId,
         name,
-        businessName: businessName || null,
-        taxId: taxId || null,
-        registrationNumber: registrationNumber || null,
+        businessName,
+        // taxId should store endpointId when provided
+        taxId: taxId || camInvoiceEndpointId || null,
+        // registrationNumber should store VATTIN/TIN per your rule
+        registrationNumber: (registrationNumber || tin || null),
         email: email || null,
         phone: phone || null,
         website: website || null,
@@ -131,18 +195,26 @@ export async function POST(request: NextRequest) {
         city,
         postalCode: postalCode || null,
         country: country || 'Cambodia',
+        camInvoiceEndpointId: camInvoiceEndpointId || null,
+        companyNameKh: companyNameKh || null,
+        camInvoiceStatus: camInvoiceStatusFinal,
+
         status: (status?.toUpperCase() as 'ACTIVE' | 'INACTIVE') || 'ACTIVE',
-      },
+      } as any),
       select: {
         id: true,
         tenantId: true,
         name: true,
         businessName: true,
         taxId: true,
+        registrationNumber: true,
         email: true,
         phone: true,
+        camInvoiceStatus: true,
+
         address: true,
         city: true,
+        postalCode: true,
         country: true,
         status: true,
         createdAt: true,

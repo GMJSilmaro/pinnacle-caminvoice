@@ -46,17 +46,20 @@ export default function PageLayout({
 
       {stickyContent && (
         <div style={{
-          padding: '0 1rem 1rem 1rem',
-          marginBottom: '0.5rem'
+          padding: '0 var(--mantine-spacing-md) var(--mantine-spacing-md) var(--mantine-spacing-md)',
+          marginBottom: '0.5rem',
+          zIndex: 99,
         }}>
           {stickyContent}
         </div>
       )}
 
       <div className={showHeader && title ? classes.overlapContent : ''}>
-        <Stack gap="xl" p="md" pt={showHeader && title ? "md" : "md"}>
-          {children}
-        </Stack>
+        <div style={{ padding: 'var(--mantine-spacing-md)' }}>
+          <Stack gap="xl">
+            {children}
+          </Stack>
+        </div>
       </div>
     </Stack>
   )

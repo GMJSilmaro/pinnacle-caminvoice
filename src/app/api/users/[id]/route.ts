@@ -5,7 +5,7 @@ import { hashPassword } from '../../../../lib/auth'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Verify authentication
@@ -15,7 +15,7 @@ export async function GET(
       return NextResponse.json({ error: error.error }, { status: error.status })
     }
 
-    const userId = params.id
+    const { id: userId } = await params
 
     // Get the target user
     const targetUser = await prisma.user.findUnique({
@@ -85,7 +85,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Verify tenant admin role
@@ -95,7 +95,7 @@ export async function PATCH(
       return NextResponse.json({ error: error.error }, { status: error.status })
     }
 
-    const userId = params.id
+    const { id: userId } = await params
     const {
       firstName,
       lastName,
@@ -229,7 +229,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Verify tenant admin role
@@ -239,7 +239,7 @@ export async function DELETE(
       return NextResponse.json({ error: error.error }, { status: error.status })
     }
 
-    const userId = params.id
+    const { id: userId } = await params
 
     // Prevent self-deletion
     if (userId === user.id) {

@@ -104,6 +104,7 @@ export async function POST(request: NextRequest) {
       taxRate,
       invoicePrefix,
       invoiceNumberStart,
+      tenantId: tenantIdFromBody,
     } = await request.json()
 
     // Validate required fields
@@ -126,15 +127,18 @@ export async function POST(request: NextRequest) {
     // Determine which tenant to update
     let targetTenantId: string
     if (user.role === 'PROVIDER') {
-      // For providers, get tenantId from request body or query params
-      const tenantIdFromBody = request.nextUrl.searchParams.get('tenantId')
-      if (!tenantIdFromBody) {
+      // For providers, allow tenantId via query string OR request body OR header
+      const tenantIdFromQuery = request.nextUrl.searchParams.get('tenantId')
+      // Body was already parsed above; reuse parsed value if present
+      const tenantIdFromHeader = request.headers.get('x-tenant-id') || undefined
+      const resolvedTenantId = tenantIdFromQuery || tenantIdFromBody || tenantIdFromHeader
+      if (!resolvedTenantId) {
         return NextResponse.json(
           { error: 'Tenant ID required for provider access.' },
           { status: 400 }
         )
       }
-      targetTenantId = tenantIdFromBody
+      targetTenantId = resolvedTenantId
     } else {
       // For tenant users, use their own tenant
       if (!user.tenantId) {

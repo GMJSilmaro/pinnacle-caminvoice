@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '../../../../../lib/prisma'
+import { ensureProviderAccessToken } from '../../../../../lib/providerToken'
+import { CaminvoiceApi } from '../../../../../lib/caminvoice'
 
 // Minimal PDF generator (no external deps). Fallback when pdf-lib/qrcode are unavailable.
 function simplePdf(textLines: string[]): Uint8Array {
@@ -26,52 +28,71 @@ function simplePdf(textLines: string[]): Uint8Array {
   return new TextEncoder().encode(pdfStr)
 }
 
-export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const invoice = await prisma.invoice.findUnique({ where: { id: params.id }, include: { customer: true } })
-    if (!invoice) return new NextResponse('Not found', { status: 404 })
-
-    // Try to generate proper PDF with QR if deps are available
-    try {
-      const [{ PDFDocument, StandardFonts, rgb }, QR] = await Promise.all([
-        import('pdf-lib') as any,
-        import('qrcode') as any,
-      ])
-      const pdfDoc = await PDFDocument.create()
-      const page = pdfDoc.addPage([595, 842])
-      const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
-      const { width, height } = page.getSize()
-      const draw = (text: string, x: number, y: number, size = 12) => page.drawText(text, { x, y, size, font, color: rgb(0, 0, 0) })
-
-      // Header
-      draw(`Invoice ${invoice.invoiceNumber}`, 50, height - 60, 18)
-      draw(`Customer: ${invoice.customer?.name ?? ''}`, 50, height - 90)
-      draw(`Total: ${invoice.currency} ${Number(invoice.totalAmount).toFixed(2)}`, 50, height - 110)
-
-      // QR from verification URL if present
-      if (invoice.verificationUrl) {
-        const dataUrl: string = await QR.toDataURL(invoice.verificationUrl, { margin: 1, scale: 6 })
-        const pngBase64 = dataUrl.split(',')[1]
-        const pngImage = await pdfDoc.embedPng(Buffer.from(pngBase64, 'base64'))
-        const pngDims = pngImage.scale(0.5)
-        page.drawImage(pngImage, { x: width - pngDims.width - 50, y: height - pngDims.height - 60, width: pngDims.width, height: pngDims.height })
-        draw('Scan to verify', width - 160, height - 70)
+    const { id } = await params
+    const invoice = await prisma.invoice.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        camInvoiceUuid: true,
+        customer: { select: { name: true } }
       }
+    })
 
-      const pdfBytes = await pdfDoc.save()
-      return new NextResponse(pdfBytes, { status: 200, headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${invoice.invoiceNumber}.pdf"` } })
-    } catch (e) {
-      // Fallback minimal PDF
+    if (!invoice) {
+      return new NextResponse('Invoice not found', { status: 404 })
+    }
+
+    // Check if invoice has been submitted to CamInvoice
+    if (!invoice.camInvoiceUuid) {
+      return new NextResponse('Invoice not submitted to CamInvoice yet', { status: 400 })
+    }
+
+    try {
+      // Get provider access token
+      const tokenInfo = await ensureProviderAccessToken({ earlyRefreshSeconds: 60 })
+
+      // Download official PDF from CamInvoice
+      const pdfBuffer = await CaminvoiceApi.downloadDocumentPdf({
+        accessToken: tokenInfo.accessToken,
+        documentId: invoice.camInvoiceUuid,
+        baseUrl: tokenInfo.baseUrl
+      })
+
+      return new NextResponse(pdfBuffer, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `inline; filename="${invoice.invoiceNumber}.pdf"`,
+          'Cache-Control': 'public, max-age=3600' // Cache for 1 hour
+        }
+      })
+    } catch (error: any) {
+      console.error('Failed to download PDF from CamInvoice:', error)
+
+      // Fallback to simple PDF if CamInvoice API fails
       const lines = [
         `Invoice: ${invoice.invoiceNumber}`,
-        `Customer: ${invoice.customer?.name ?? ''}`,
-        `Total: ${invoice.currency} ${invoice.totalAmount}`,
-        invoice.verificationUrl ? `Verify: ${invoice.verificationUrl}` : 'No verification link yet',
+        `Customer: ${invoice.customer?.name ?? 'Unknown'}`,
+        `Status: Submitted to CamInvoice`,
+        `Document ID: ${invoice.camInvoiceUuid}`,
+        '',
+        'Official PDF download failed.',
+        'Please try again or contact support.'
       ]
       const pdf = simplePdf(lines)
-      return new NextResponse(pdf, { status: 200, headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${invoice.invoiceNumber}.pdf"` } })
+      return new NextResponse(Buffer.from(pdf), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `inline; filename="${invoice.invoiceNumber}-fallback.pdf"`
+        }
+      })
     }
   } catch (e) {
+    console.error('PDF route error:', e)
     return new NextResponse('Server error', { status: 500 })
   }
 }

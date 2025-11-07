@@ -11,7 +11,11 @@ import {
   Badge,
   ActionIcon,
   Avatar,
+  Alert,
+  Tooltip,
+  Modal,
   Paper,
+  Checkbox,
 } from "@mantine/core"
 import {
   IconPlus,
@@ -26,6 +30,16 @@ import {
   IconClock,
   IconQuestionMark,
   IconRefresh,
+  IconUsers,
+  IconFileInvoice,
+  IconCalendarEvent,
+  IconCurrencyDollar,
+  IconInfoCircle,
+  IconBulb,
+  IconHelp,
+  IconChevronDown,
+  IconChevronUp,
+  IconX,
 } from "@tabler/icons-react"
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -34,7 +48,6 @@ import { showNotification } from '../../utils/notifications'
 import PageLayout from "../layouts/PageLayout"
 import PageSkeleton from "../skeletons/PageSkeleton"
 import { DataTable } from '../tables/DataTable'
-// import Breadcrumbs from "../navigation/Breadcrumbs"
 
 // Customer type definition
 interface Customer {
@@ -43,8 +56,9 @@ interface Customer {
   email: string
   phone: string
   status: string
-  projects: number
-  revenue: string
+  invoices: number
+  revenue: number
+  currency?: string
   lastContact: string
   avatar: string
   camInvId?: string // CamInv Endpoint ID (e.g., KHUID00001234)
@@ -54,108 +68,19 @@ interface Customer {
   tin?: string // Tax Identification Number
 }
 
-// Mock data for demonstration
-const clientStats = [
-  {
-    title: "Total Customers",
-    value: "156",
-    icon: IconPlus,
-    color: "blue",
-    change: "+12",
-  },
-  {
-    title: "Active Projects",
-    value: "89",
-    icon: IconPlus,
-    color: "green",
-    change: "+5",
-  },
-  {
-    title: "New This Month",
-    value: "23",
-    icon: IconPlus,
-    color: "orange",
-    change: "+8",
-  },
-  {
-    title: "Total Revenue",
-    value: "$125K",
-    icon: IconPlus,
-    color: "purple",
-    change: "+15%",
-  },
-]
-
-const clients: Customer[] = [
-  {
-    id: "1",
-    name: "Acme Corporation",
-    email: "contact@acme.com",
-    phone: "+1 (555) 123-4567",
-    status: "Active",
-    projects: 5,
-    revenue: "$12,500",
-    lastContact: "2024-01-15",
-    avatar: "AC",
-    camInvId: "KHUID00001234",
-    camInvStatus: "registered",
-    companyNameEn: "Acme Corporation Ltd",
-    companyNameKh: "អេកមី កម្ពុយទ័រ",
-    tin: "K001-901234567",
-  },
-  {
-    id: "2",
-    name: "Tech Solutions Inc",
-    email: "info@techsolutions.com",
-    phone: "+1 (555) 987-6543",
-    status: "Active",
-    projects: 3,
-    revenue: "$8,900",
-    lastContact: "2024-01-14",
-    avatar: "TS",
-    camInvId: "KHUID00005678",
-    camInvStatus: "registered",
-    companyNameEn: "Tech Solutions Inc",
-    companyNameKh: "តេក សូលុយសិន",
-    tin: "K001-905678901",
-  },
-  {
-    id: "3",
-    name: "Design Studio Pro",
-    email: "hello@designstudio.com",
-    phone: "+1 (555) 456-7890",
-    status: "Inactive",
-    projects: 1,
-    revenue: "$3,200",
-    lastContact: "2024-01-10",
-    avatar: "DS",
-    camInvStatus: "not_registered",
-  },
-  {
-    id: "4",
-    name: "Marketing Plus LLC",
-    email: "team@marketingplus.com",
-    phone: "+1 (555) 321-0987",
-    status: "Active",
-    projects: 7,
-    revenue: "$18,750",
-    lastContact: "2024-01-16",
-    avatar: "MP",
-    camInvStatus: "pending",
-  },
-  {
-    id: "5",
-    name: "Global Enterprises",
-    email: "contact@global.com",
-    phone: "+1 (555) 654-3210",
-    status: "Pending",
-    projects: 0,
-    revenue: "$0",
-    lastContact: "2024-01-12",
-    avatar: "GE",
-    camInvStatus: "unknown",
-  },
-]
+// API response type (subset)
+interface ApiCustomer {
+  id: string
+  name: string
+  email?: string | null
+  phone?: string | null
+  status: 'ACTIVE' | 'INACTIVE'
+  camInvoiceStatus?: string
+  address: string
+  city: string
+  country: string
+  createdAt: string
+}
 
 function getStatusColor(status: string) {
   switch (status) {
@@ -279,19 +204,13 @@ const columns: ColumnDef<Customer>[] = [
     },
   },
   {
-    accessorKey: 'projects',
-    header: 'Projects',
+    accessorKey: 'invoices',
+    header: 'Invoices',
     cell: ({ row }) => (
-      <Text fw={500}>{row.original.projects}</Text>
+      <Text fw={500}>{row.original.invoices}</Text>
     ),
   },
-  {
-    accessorKey: 'revenue',
-    header: 'Revenue',
-    cell: ({ row }) => (
-      <Text fw={500}>{row.original.revenue}</Text>
-    ),
-  },
+  // Revenue column removed per request
   {
     id: 'actions',
     header: 'Actions',
@@ -299,51 +218,69 @@ const columns: ColumnDef<Customer>[] = [
       const router = useRouter()
       return (
         <Group gap="xs">
-          <ActionIcon
-            variant="subtle"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation()
-              router.push(`/customers/${row.original.id}`)
-            }}
-          >
-            <IconEye size={16} />
-          </ActionIcon>
-          <ActionIcon
-            variant="subtle"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation()
-              router.push(`/customers/${row.original.id}/edit`)
-            }}
-          >
-            <IconEdit size={16} />
-          </ActionIcon>
-          <ActionIcon
-            variant="subtle"
-            size="sm"
-            color="blue"
-            onClick={(e) => {
-              e.stopPropagation()
-              // TODO: Implement CamInv registration check
-              console.log('Check CamInv registration for:', row.original.name)
-              showNotification.info(`Checking CamInv registration for ${row.original.name}...`)
-            }}
-          >
-            <IconRefresh size={16} />
-          </ActionIcon>
-          <ActionIcon
-            variant="subtle"
-            size="sm"
-            color="red"
-            onClick={(e) => {
-              e.stopPropagation()
-              // TODO: Implement delete functionality
-              console.log('Delete customer:', row.original.id)
-            }}
-          >
-            <IconTrash size={16} />
-          </ActionIcon>
+          <Tooltip label="View customer details">
+            <ActionIcon
+              variant="subtle"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                router.push(`/customers/${row.original.id}`)
+              }}
+            >
+              <IconEye size={16} />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label="Edit customer information">
+            <ActionIcon
+              variant="subtle"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                router.push(`/customers/${row.original.id}/edit`)
+              }}
+            >
+              <IconEdit size={16} />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label="Refresh CamInvoice registration status">
+            <ActionIcon
+              variant="subtle"
+              size="sm"
+              color="blue"
+              onClick={(e) => {
+                e.stopPropagation()
+                // TODO: Implement CamInv registration check
+                console.log('Check CamInv registration for:', row.original.name)
+                showNotification.info(`Checking CamInv registration for ${row.original.name}...`)
+              }}
+            >
+              <IconRefresh size={16} />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label="Delete customer (cannot be undone)">
+            <ActionIcon
+              variant="subtle"
+              size="sm"
+              color="red"
+              onClick={async (e) => {
+                e.stopPropagation()
+                const id = row.original.id
+                const ok = window.confirm(`Delete customer ${row.original.name}? This cannot be undone.`)
+                if (!ok) return
+                try {
+                  const res = await fetch(`/api/customers/${id}`, { method: 'DELETE', credentials: 'include' })
+                  const body = await res.json().catch(() => ({}))
+                  if (!res.ok) throw new Error(body.error || 'Failed to delete customer')
+                  showNotification.success('Customer deleted')
+                  window.dispatchEvent(new CustomEvent('customers:refresh'))
+                } catch (err: any) {
+                  showNotification.error(err?.message || 'Failed to delete customer')
+                }
+              }}
+            >
+              <IconTrash size={16} />
+            </ActionIcon>
+          </Tooltip>
         </Group>
       )
     },
@@ -358,29 +295,63 @@ export default function ClientsPage() {
     router.push(`/customers/${client.id}`)
   }
 
+  const [stats, setStats] = useState({ totalCustomers: 0, newThisMonth: 0, activeInvoices: 0, totalRevenue: 0 })
+
+  // Help section state
+  const [helpExpanded, setHelpExpanded] = useState(false)
+  const [helpDismissed, setHelpDismissed] = useState(false)
+
+  // Load help preferences from localStorage
+  useEffect(() => {
+    const dismissed = localStorage.getItem('customers-help-dismissed') === 'true'
+    const expanded = localStorage.getItem('customers-help-expanded') === 'true'
+    setHelpDismissed(dismissed)
+    setHelpExpanded(expanded && !dismissed)
+  }, [])
+
+  // Save help preferences to localStorage
+  const toggleHelp = () => {
+    const newExpanded = !helpExpanded
+    setHelpExpanded(newExpanded)
+    localStorage.setItem('customers-help-expanded', String(newExpanded))
+  }
+
+  const dismissHelp = () => {
+    setHelpDismissed(true)
+    setHelpExpanded(false)
+    localStorage.setItem('customers-help-dismissed', 'true')
+  }
+
+
+  const statsCards = [
+    { title: 'Total Customers', value: String(stats.totalCustomers), icon: IconUsers, color: 'blue' as const },
+    { title: 'Total Invoices', value: stats.activeInvoices ? String(stats.activeInvoices) : '—', icon: IconFileInvoice, color: 'green' as const },
+    { title: 'New This Month', value: String(stats.newThisMonth), icon: IconCalendarEvent, color: 'orange' as const },
+    { title: 'Total Revenue', value: stats.totalRevenue ? new Intl.NumberFormat().format(stats.totalRevenue) : '—', icon: IconCurrencyDollar, color: 'purple' as const },
+  ]
+
   const stickyContent = (
     <Flex wrap="wrap" gap="md">
-      {clientStats.map((stat, index) => (
+      {statsCards.map((stat, index) => (
         <Box key={index} style={{ flex: '1 1 300px', minWidth: '250px' }}>
           <Card padding="lg" radius="md" withBorder>
             <Group justify="space-between">
               <Box>
-                <Text c="dimmed" size="sm" fw={500}>
-                  {stat.title}
-                </Text>
+                <Group gap="xs" align="center">
+                  <Text c="dimmed" size="sm" fw={500}>
+                    {stat.title}
+                  </Text>
+                  {stat.title === 'Total Revenue' && (
+                    <Tooltip label="Revenue amounts are displayed in KHR (Cambodian Riel)">
+                      <IconInfoCircle size={14} style={{ color: 'var(--mantine-color-gray-6)' }} />
+                    </Tooltip>
+                  )}
+                </Group>
                 <Text fw={700} size="xl">
                   {stat.value}
                 </Text>
-                <Text c="green" size="sm">
-                  {stat.change} from last month
-                </Text>
               </Box>
-              <ActionIcon
-                size="xl"
-                radius="md"
-                variant="light"
-                color={stat.color}
-              >
+              <ActionIcon size="xl" radius="md" variant="light" color={stat.color}>
                 <stat.icon size={24} />
               </ActionIcon>
             </Group>
@@ -391,20 +362,47 @@ export default function ClientsPage() {
   )
 
   const [pageLoading, setPageLoading] = useState(true)
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [currencyCode, setCurrencyCode] = useState<string>('KHR')
+
+  async function loadCustomers() {
+    try {
+      const res = await fetch('/api/customers?page=1&pageSize=100', { credentials: 'include' })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body?.error || 'Failed to load customers')
+      const data = body as { customers: (ApiCustomer & { invoiceCount?: number; totalRevenue?: number })[]; total?: number; currency?: string }
+      const mapped: Customer[] = (data.customers || []).map((c) => ({
+        id: c.id,
+        name: c.name,
+        email: c.email || '-',
+        phone: c.phone || '-',
+        status: c.status === 'ACTIVE' ? 'Active' : 'Inactive',
+        invoices: typeof (c as any).invoiceCount === 'number' ? (c as any).invoiceCount : 0,
+        revenue: Number((c as any).totalRevenue || 0),
+        currency: (data.currency || 'KHR'),
+        lastContact: new Date(c.createdAt).toLocaleDateString(),
+        avatar: (c.name?.split(' ').map(p=>p[0]).join('').slice(0,2) || 'CU').toUpperCase(),
+        camInvStatus: ((c as any).camInvoiceStatus as any) || 'unknown',
+      }))
+      setCustomers(mapped)
+      if (data.currency) setCurrencyCode(data.currency)
+
+      const total = typeof (data as any).total === 'number' ? (data as any).total : mapped.length
+      const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0,0,0,0)
+      const newThisMonth = (data.customers || []).reduce((acc, c) => acc + (new Date(c.createdAt) >= monthStart ? 1 : 0), 0)
+      setStats({ totalCustomers: total, newThisMonth, activeInvoices: 0, totalRevenue: 0 })
+    } catch (e: any) {
+      showNotification.error(e?.message || 'Failed to load customers')
+    }
+  }
 
   useEffect(() => {
     let mounted = true
-    ;(async () => {
-      try {
-        // Small, cheap request just to ensure API is reachable; real data wiring can replace this
-        await fetch('/api/customers?take=1', { credentials: 'include' })
-      } catch (e) {
-        // ignore errors; we still proceed to render with mock data
-      } finally {
-        if (mounted) setPageLoading(false)
-      }
-    })()
-    return () => { mounted = false }
+    loadCustomers().finally(() => mounted && setPageLoading(false))
+
+    const onRefresh = () => loadCustomers()
+    window.addEventListener('customers:refresh', onRefresh)
+    return () => { mounted = false; window.removeEventListener('customers:refresh', onRefresh) }
   }, [])
 
   if (pageLoading) {
@@ -433,7 +431,7 @@ export default function ClientsPage() {
     <PageLayout
       title="Customers"
       subtitle="Manage your customer relationships and contacts"
-      showBackButton={false}
+      showBackButton={true}
       stickyContent={stickyContent}
       actions={
         <Group>
@@ -449,14 +447,75 @@ export default function ClientsPage() {
         </Group>
       }
     >
+      <Stack gap="md">
+        {/* Compact Help Section */}
+        {!helpDismissed && (
+          <Paper withBorder p="xs" radius="md" style={{ backgroundColor: 'var(--mantine-color-blue-0)' }}>
+            <Group justify="space-between" align="center">
+              <Group gap="xs" align="center">
+                <IconHelp size={16} style={{ color: 'var(--mantine-color-blue-6)' }} />
+                <Text size="sm" fw={500} c="blue.7">
+                  Customer Management Help
+                </Text>
+                {!helpExpanded && (
+                  <Text size="xs" c="dimmed">
+                    Click to view tips and guides
+                  </Text>
+                )}
+              </Group>
+              <Group gap="xs">
+                <ActionIcon
+                  variant="subtle"
+                  size="sm"
+                  onClick={toggleHelp}
+                  aria-label={helpExpanded ? "Collapse help" : "Expand help"}
+                >
+                  {helpExpanded ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+                </ActionIcon>
+                <ActionIcon
+                  variant="subtle"
+                  size="sm"
+                  color="gray"
+                  onClick={dismissHelp}
+                  aria-label="Dismiss help"
+                >
+                  <IconX size={14} />
+                </ActionIcon>
+              </Group>
+            </Group>
 
-      {/* Customers Table with TanStack Table */}
-      <DataTable
-        columns={columns}
-        data={clients}
-        searchPlaceholder="Search customers..."
-        onRowClick={handleRowClick}
-      />
+            {helpExpanded && (
+              <Stack gap="xs" mt="xs" pl="md">
+                <Box>
+                  <Text size="xs" fw={500} c="blue.7" mb={2}>Management Guide:</Text>
+                  <Text size="xs" c="dimmed" style={{ lineHeight: 1.4 }}>
+                    • Click any customer row for detailed information and profile management<br />
+                    • Check <strong>CamInv Status</strong> column for Cambodia e-invoice registration<br />
+                    • Use refresh icon <IconRefresh size={12} style={{ display: 'inline' }} /> to update CamInvoice status<br />
+                    • Revenue displayed in KHR (Cambodian Riel) format
+                  </Text>
+                </Box>
+                <Box>
+                  <Text size="xs" fw={500} c="orange.7" mb={2}>Quick Tips:</Text>
+                  <Text size="xs" c="dimmed" style={{ lineHeight: 1.4 }}>
+                    • "CamInv Registered" customers can receive e-invoices<br />
+                    • Use search bar for quick customer lookup<br />
+                    • Export data via filter options for reporting
+                  </Text>
+                </Box>
+              </Stack>
+            )}
+          </Paper>
+        )}
+
+        {/* Customers Table with TanStack Table */}
+        <DataTable
+          columns={columns}
+          data={customers}
+          searchPlaceholder="Search customers..."
+          onRowClick={handleRowClick}
+        />
+      </Stack>
     </PageLayout>
   )
 }

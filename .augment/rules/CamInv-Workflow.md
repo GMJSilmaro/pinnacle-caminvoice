@@ -10,7 +10,7 @@ You are helping me implement a **multi-tenant SaaS e-Invoice Portal** where we a
 Follow these strict rules:
 
 * Use **PNPM** as package manager.
-* Stack: **Next.js App Router + MongoDB + BetterAuth + Mantine UI**.
+* Stack: **Next.js App Router + PostgresSQL/Prisma + BetterAuth + Mantine UI**.
 * Organize codebase: **separate client and server components**, use clean modules.
 * Securely handle sensitive data (no plain text secrets in repo).
 * Always reference `docs/` if unclear.

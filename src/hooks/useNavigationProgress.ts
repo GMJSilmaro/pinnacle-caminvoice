@@ -20,8 +20,8 @@ export function useNavigationProgress() {
     nprogress.complete();
   };
 
-  const incrementProgress = (amount?: number) => {
-    nprogress.increment(amount);
+  const incrementProgress = () => {
+    nprogress.increment();
   };
 
   const setProgress = (progress: number) => {

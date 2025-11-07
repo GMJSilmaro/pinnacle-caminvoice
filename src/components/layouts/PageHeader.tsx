@@ -6,7 +6,6 @@ import {
   Title,
   Text,
   Badge,
-  Box,
 } from '@mantine/core'
 import {
   IconArrowLeft,
@@ -57,7 +56,7 @@ export default function PageHeader({
   }
 
   return (
-    <Box
+    <div
       className={`${classes.stickyHeader} ${isScrolled ? classes.scrolled : ''}`}
     >
       <Group justify="space-between" align="center">
@@ -68,7 +67,6 @@ export default function PageHeader({
               size="lg"
               onClick={handleBack}
               c="white"
-              style={{ color: 'white' }}
             >
               <IconArrowLeft size={20} />
             </ActionIcon>
@@ -96,6 +94,6 @@ export default function PageHeader({
           </Group>
         )}
       </Group>
-    </Box>
+    </div>
   )
 }

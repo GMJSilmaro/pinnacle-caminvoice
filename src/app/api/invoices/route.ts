@@ -22,10 +22,12 @@ export async function GET(request: NextRequest) {
     const pageSize = toInt(searchParams.get('pageSize'), 10)
     const search = searchParams.get('search')?.trim()
     const status = searchParams.get('status')?.toUpperCase()
+    const customerId = searchParams.get('customerId')?.trim()
 
     const where = {
       ...getTenantFilter(user),
-      ...(status ? { status } : {}),
+      ...(status ? { status: status as any } : {}),
+      ...(customerId ? { customerId } : {}),
       ...(search
         ? {
             OR: [
@@ -51,8 +53,13 @@ export async function GET(request: NextRequest) {
           totalAmount: true,
           currency: true,
           camInvoiceUuid: true,
+          camInvoiceStatus: true,
           verificationUrl: true,
-          customer: { select: { id: true, name: true } },
+          deliveryStatus: true,
+          deliveryMethod: true,
+          deliveredAt: true,
+          deliveryError: true,
+          customer: { select: { id: true, name: true, email: true, camInvoiceEndpointId: true } },
         },
       }),
       prisma.invoice.aggregate({
@@ -98,11 +105,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Compute totals server-side
-    type InItem = { description: string; quantity: number; unitPrice: number; taxScheme?: string }
+    type InItem = { description: string; quantity: number; unitPrice: number; taxScheme?: string; allowanceAmount?: number; chargeAmount?: number }
     const items = (lineItems as InItem[]).map((li) => {
       const q = Number(li.quantity || 0)
       const p = Number(li.unitPrice || 0)
-      const lineTotal = q * p
+      const allowanceAmount = Number(li.allowanceAmount || 0)
+      const chargeAmount = Number(li.chargeAmount || 0)
+      const baseTotal = q * p
+      const lineTotal = baseTotal - allowanceAmount + chargeAmount
       const taxRate = li.taxScheme === 'VAT' ? 0.10 : 0
       const taxAmount = lineTotal * taxRate
       return { description: li.description, quantity: q, unitPrice: p, lineTotal, taxRate, taxAmount }
@@ -110,6 +120,14 @@ export async function POST(request: NextRequest) {
     const subtotal = items.reduce((s, it) => s + it.lineTotal, 0)
     const taxAmount = items.reduce((s, it) => s + it.taxAmount, 0)
     const totalAmount = subtotal + taxAmount
+
+    // Validate that total amount is greater than 0
+    if (totalAmount === 0 || totalAmount <= 0) {
+      return NextResponse.json(
+        { error: 'INVALID_AMOUNT', message: 'Invoice total amount must be greater than zero. Please add line items with valid prices.' },
+        { status: 400 }
+      )
+    }
 
     const created = await prisma.$transaction(async (tx) => {
       const inv = await tx.invoice.create({
@@ -134,6 +152,15 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, id: created.id })
   } catch (error) {
+    // Map known Prisma errors to meaningful HTTP responses
+    const err = error as any
+    if (err?.code === 'P2002') {
+      // Unique constraint violation (likely tenantId + invoiceNumber)
+      return NextResponse.json(
+        { error: 'DUPLICATE_INVOICE_NUMBER', message: 'An invoice with this number already exists.' },
+        { status: 409 }
+      )
+    }
     console.error('Invoices POST error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

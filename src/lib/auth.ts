@@ -43,9 +43,9 @@ export const auth = betterAuth({
       },
     },
   },
-  trustedOrigins: ["http://localhost:3000"],
+  trustedOrigins: ["http://localhost:3000", "https://sandbox.e-invoice.gov.kh"],
   secret: process.env.BETTER_AUTH_SECRET!,
-  baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3000",
+  baseURL: process.env.BETTER_AUTH_URL,
 })
 
 // Helper functions for authentication
@@ -85,6 +85,11 @@ export type AuthUser = {
   role: "PROVIDER" | "TENANT_ADMIN" | "TENANT_USER"
   status: "ACTIVE" | "INACTIVE" | "SUSPENDED"
   tenantId?: string | null
+  tenant?: {
+    id: string
+    name: string
+    status: string
+  } | null
 }
 
 export type AuthSession = {

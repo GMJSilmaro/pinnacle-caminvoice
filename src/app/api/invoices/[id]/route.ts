@@ -3,7 +3,7 @@ import { prisma } from '../../../../lib/prisma'
 import { verifyAuthentication, AuthErrors, createErrorResponse } from '../../../../lib/tenant-middleware'
 import { logAudit } from '../../../../lib/audit'
 
-export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
     const invoice = await prisma.invoice.findUnique({
@@ -29,7 +29,7 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
     const user = await verifyAuthentication(request)
@@ -98,6 +98,54 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     return NextResponse.json({ success: true, id: updated.id })
   } catch (error) {
     console.error('Invoice PUT error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params
+    const user = await verifyAuthentication(request)
+    if (!user) {
+      const err = createErrorResponse(AuthErrors.UNAUTHORIZED)
+      return NextResponse.json({ error: err.error }, { status: err.status })
+    }
+
+    const invoice = await prisma.invoice.findUnique({
+      where: { id },
+      select: { id: true, tenantId: true, status: true, camInvoiceUuid: true, camInvoiceStatus: true, invoiceNumber: true },
+    })
+    if (!invoice) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (user.role !== 'PROVIDER' && user.tenantId !== invoice.tenantId) {
+      const err = createErrorResponse(AuthErrors.TENANT_ACCESS_DENIED)
+      return NextResponse.json({ error: err.error }, { status: err.status })
+    }
+
+    // Only allow deletion for invoices that are still drafts and not submitted to CamInvoice
+    const isDraft = String(invoice.status).toUpperCase() === 'DRAFT'
+    const hasCamInvoiceSubmission = Boolean(invoice.camInvoiceUuid || invoice.camInvoiceStatus)
+    if (!isDraft || hasCamInvoiceSubmission) {
+      return NextResponse.json(
+        { error: 'DELETE_NOT_ALLOWED', message: 'Invoice can only be deleted before submission.' },
+        { status: 409 }
+      )
+    }
+
+    await prisma.invoice.delete({ where: { id } })
+
+    await logAudit({
+      userId: user.id,
+      tenantId: invoice.tenantId,
+      action: 'DELETE',
+      entityType: 'Invoice',
+      entityId: id,
+      description: `Deleted invoice ${invoice.invoiceNumber}`,
+      request,
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Invoice DELETE error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

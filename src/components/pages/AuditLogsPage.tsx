@@ -15,7 +15,11 @@ import {
   Paper,
   Menu,
   Grid,
-} from "@mantine/core"
+  Modal,
+  Drawer,
+  Select,
+  TextInput,
+} from "@mantine/core";
 import {
   IconDownload,
   IconEye,
@@ -28,21 +32,27 @@ import {
   IconLogin,
   IconShield,
   IconDots,
-} from "@tabler/icons-react"
-import { type ColumnDef } from '@tanstack/react-table'
-import PageLayout from "../layouts/PageLayout"
-import PageSkeleton from "../skeletons/PageSkeleton"
-import { DataTable } from '../tables/DataTable'
-import StatsCard from '../ui/StatsCard'
-// import Breadcrumbs from "../navigation/Breadcrumbs"
+  IconClock,
+} from "@tabler/icons-react";
+import { useRouter } from "next/navigation";
+import { type ColumnDef } from "@tanstack/react-table";
+import PageLayout from "../layouts/PageLayout";
+import PageSkeleton from "../skeletons/PageSkeleton";
+import { DataTable } from "../tables/DataTable";
+import StatsCard from "../ui/StatsCard";
+import { useEffect, useState } from "react";
+import { showNotification } from "../../utils/notifications";
 
 // Audit log interface for TypeScript
 interface AuditLog {
   id: string
   timestamp: string
   user: string
+  userId: string | null
   action: string
+  actionType: string
   resource: string
+  entityId: string | null
   ip: string
   status: string
   details: string
@@ -51,268 +61,41 @@ interface AuditLog {
   userAgent?: string
   duration?: number
   severity: 'low' | 'medium' | 'high' | 'critical'
+  metadata?: any
 }
 
-// Mock data for demonstration
-const auditStats = [
-  {
-    title: "Total Events",
-    value: "2,847",
-    icon: IconFileText,
-    color: "blue",
-    change: "+156 today",
-    description: "All system activities",
-  },
-  {
-    title: "User Actions",
-    value: "1,923",
-    icon: IconUser,
-    color: "green",
-    change: "+89 today",
-    description: "User-initiated activities",
-  },
-  {
-    title: "System Events",
-    value: "924",
-    icon: IconSettings,
-    color: "orange",
-    change: "+67 today",
-    description: "Automated system processes",
-  },
-  {
-    title: "Security Events",
-    value: "45",
-    icon: IconShield,
-    color: "red",
-    change: "+12 today",
-    description: "Security-related activities",
-  },
-  {
-    title: "Failed Actions",
-    value: "23",
-    icon: IconTrash,
-    color: "red",
-    change: "+3 today",
-    description: "Failed operations",
-  },
-  {
-    title: "API Calls",
-    value: "1,456",
-    icon: IconFileText,
-    color: "violet",
-    change: "+234 today",
-    description: "External API interactions",
-  },
-]
+interface AuditStatistic {
+  value: number
+  todayChange: number
+}
 
-const auditLogs: AuditLog[] = [
-  {
-    id: "1",
-    timestamp: "2024-01-16 14:30:25",
-    user: "John Doe",
-    action: "Invoice Created",
-    resource: "INV-2024-001",
-    ip: "192.168.1.100",
-    status: "Success",
-    details: "Created invoice for Acme Corp worth $2,500.00",
-    type: "CREATE",
-    avatar: "JD",
-    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    duration: 1250,
-    severity: "low",
-  },
-  {
-    id: "2",
-    timestamp: "2024-01-16 14:28:15",
-    user: "System",
-    action: "CamInvoice Submission",
-    resource: "INV-2024-001",
-    ip: "127.0.0.1",
-    status: "Success",
-    details: "Invoice successfully submitted to CamInvoice system",
-    type: "INTEGRATION",
-    avatar: "SY",
-    duration: 3200,
-    severity: "medium",
-  },
-  {
-    id: "3",
-    timestamp: "2024-01-16 14:25:12",
-    user: "Jane Smith",
-    action: "User Login",
-    resource: "Authentication",
-    ip: "192.168.1.101",
-    status: "Success",
-    details: "Successful login attempt from Chrome browser",
-    type: "AUTH",
-    avatar: "JS",
-    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    duration: 850,
-    severity: "low",
-  },
-  {
-    id: "4",
-    timestamp: "2024-01-16 14:22:45",
-    user: "Mike Johnson",
-    action: "Customer Updated",
-    resource: "CUST-001",
-    ip: "192.168.1.102",
-    status: "Success",
-    details: "Updated customer CamInvoice endpoint configuration",
-    type: "UPDATE",
-    avatar: "MJ",
-    userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-    duration: 950,
-    severity: "low",
-  },
-  {
-    id: "5",
-    timestamp: "2024-01-16 14:20:33",
-    user: "System",
-    action: "Failed Login Attempt",
-    resource: "Authentication",
-    ip: "203.144.75.22",
-    status: "Failed",
-    details: "Multiple failed login attempts detected from suspicious IP",
-    type: "SECURITY",
-    avatar: "SY",
-    duration: 0,
-    severity: "high",
-  },
-  {
-    id: "6",
-    timestamp: "2024-01-16 14:18:10",
-    user: "Admin",
-    action: "User Role Changed",
-    resource: "USER-005",
-    ip: "192.168.1.1",
-    status: "Success",
-    details: "Changed user role from 'User' to 'Admin'",
-    type: "PERMISSION",
-    avatar: "AD",
-    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    duration: 750,
-    severity: "high",
-  },
-  {
-    id: "7",
-    timestamp: "2024-01-16 14:15:33",
-    user: "System",
-    action: "Database Backup",
-    resource: "Database",
-    ip: "127.0.0.1",
-    status: "Success",
-    details: "Automated daily database backup completed successfully",
-    type: "SYSTEM",
-    avatar: "SY",
-    duration: 45000,
-    severity: "low",
-  },
-  {
-    id: "8",
-    timestamp: "2024-01-16 14:12:18",
-    user: "Sarah Wilson",
-    action: "Credit Note Created",
-    resource: "CN-2024-001",
-    ip: "192.168.1.105",
-    status: "Success",
-    details: "Created credit note for returned items worth $150.00",
-    type: "CREATE",
-    avatar: "SW",
-    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    duration: 1100,
-    severity: "low",
-  },
-  {
-    id: "9",
-    timestamp: "2024-01-16 14:10:45",
-    user: "System",
-    action: "CamInvoice Webhook",
-    resource: "INV-2024-002",
-    ip: "203.176.178.44",
-    status: "Success",
-    details: "Received invoice acceptance notification from CamInvoice",
-    type: "WEBHOOK",
-    avatar: "SY",
-    duration: 320,
-    severity: "medium",
-  },
-  {
-    id: "10",
-    timestamp: "2024-01-16 14:08:22",
-    user: "Tom Chen",
-    action: "Invoice Deleted",
-    resource: "INV-2024-003",
-    ip: "192.168.1.103",
-    status: "Success",
-    details: "Deleted draft invoice INV-2024-003",
-    type: "DELETE",
-    avatar: "TC",
-    userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-    duration: 650,
-    severity: "medium",
-  },
-  {
-    id: "11",
-    timestamp: "2024-01-16 14:05:15",
-    user: "System",
-    action: "API Rate Limit Exceeded",
-    resource: "CamInvoice API",
-    ip: "127.0.0.1",
-    status: "Warning",
-    details: "API rate limit exceeded for CamInvoice integration",
-    type: "API",
-    avatar: "SY",
-    duration: 0,
-    severity: "medium",
-  },
-  {
-    id: "12",
-    timestamp: "2024-01-16 14:02:33",
-    user: "Lisa Park",
-    action: "Export Data",
-    resource: "Invoice Report",
-    ip: "192.168.1.104",
-    status: "Success",
-    details: "Exported monthly invoice report (245 records)",
-    type: "EXPORT",
-    avatar: "LP",
-    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    duration: 2800,
-    severity: "low",
-  },
-]
+interface AuditStatistics {
+  totalEvents: AuditStatistic
+  userActions: AuditStatistic
+  systemEvents: AuditStatistic
+  securityEvents: AuditStatistic
+  failedActions: AuditStatistic
+  apiCalls: AuditStatistic
+}
 
-const recentActivity = [
-  {
-    time: "2 minutes ago",
-    action: "Invoice INV-001 created",
-    user: "John Doe",
-    icon: IconFileText,
-    color: "blue",
-  },
-  {
-    time: "5 minutes ago",
-    action: "User logged in",
-    user: "Jane Smith",
-    icon: IconLogin,
-    color: "green",
-  },
-  {
-    time: "10 minutes ago",
-    action: "Client profile updated",
-    user: "Mike Johnson",
-    icon: IconEdit,
-    color: "orange",
-  },
-  {
-    time: "15 minutes ago",
-    action: "System backup completed",
-    user: "System",
-    icon: IconShield,
-    color: "purple",
-  },
-]
+interface RecentActivity {
+  time: string
+  action: string
+  user: string
+  actionType: string
+}
+
+interface AuditLogsResponse {
+  logs: AuditLog[]
+  pagination: {
+    total: number
+    limit: number
+    offset: number
+    hasMore: boolean
+  }
+  statistics: AuditStatistics
+  recentActivity: RecentActivity[]
+}
 
 function getStatusColor(status: string) {
   switch (status) {
@@ -373,26 +156,173 @@ function getSeverityColor(severity: string) {
   }
 }
 
+// Helper function to get icon for action type
+function getIconForActionType(actionType: string) {
+  switch (actionType) {
+    case 'CREATE':
+      return IconFileText
+    case 'UPDATE':
+      return IconEdit
+    case 'DELETE':
+      return IconTrash
+    case 'LOGIN':
+    case 'LOGOUT':
+      return IconLogin
+    case 'CONFIGURE_PROVIDER':
+    case 'CREATE_TENANT':
+    case 'SUSPEND_TENANT':
+    case 'ACTIVATE_TENANT':
+      return IconShield
+    default:
+      return IconSettings
+  }
+}
+
+// Helper function to get color for action type
+function getColorForActionType(actionType: string): string {
+  switch (actionType) {
+    case 'CREATE':
+      return 'blue'
+    case 'UPDATE':
+      return 'orange'
+    case 'DELETE':
+      return 'red'
+    case 'LOGIN':
+    case 'LOGOUT':
+      return 'green'
+    case 'CONFIGURE_PROVIDER':
+    case 'CREATE_TENANT':
+    case 'SUSPEND_TENANT':
+    case 'ACTIVATE_TENANT':
+      return 'purple'
+    default:
+      return 'gray'
+  }
+}
+
 export default function AuditLogsPage() {
   const [pageLoading, setPageLoading] = useState(true)
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
+  const [statistics, setStatistics] = useState<AuditStatistics | null>(null)
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
+  const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null)
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false)
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false)
+
+  // Filter state
+  const [filters, setFilters] = useState({
+    action: '',
+    entityType: '',
+    startDate: '',
+    endDate: '',
+  })
+
+  const fetchAuditLogs = async (appliedFilters?: typeof filters) => {
+    try {
+      const filterParams = appliedFilters || filters
+      const params = new URLSearchParams()
+      
+      if (filterParams.action) params.append('action', filterParams.action)
+      if (filterParams.entityType) params.append('entityType', filterParams.entityType)
+      if (filterParams.startDate) params.append('startDate', filterParams.startDate)
+      if (filterParams.endDate) params.append('endDate', filterParams.endDate)
+
+      const response = await fetch(`/api/audit-logs?${params.toString()}`, { 
+        credentials: 'include' 
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch audit logs')
+      }
+
+      const data: AuditLogsResponse = await response.json()
+      setAuditLogs(data.logs)
+      setStatistics(data.statistics)
+      setRecentActivity(data.recentActivity)
+    } catch (error) {
+      console.error('Error fetching audit logs:', error)
+      showNotification.error('Failed to fetch audit logs')
+    } finally {
+      setPageLoading(false)
+    }
+  }
 
   useEffect(() => {
-    let mounted = true
-    ;(async () => {
-      try {
-        await fetch('/api/auth/session', { credentials: 'include' })
-      } catch (e) {
-        // ignore
-      } finally {
-        if (mounted) setPageLoading(false)
-      }
-    })()
-    return () => { mounted = false }
+    fetchAuditLogs()
   }, [])
 
+  const applyFilters = () => {
+    setPageLoading(true)
+    fetchAuditLogs(filters)
+    setFilterDrawerOpen(false)
+    showNotification.info('Audit logs filtered successfully', 'Filters Applied')
+  }
+
+  const clearFilters = () => {
+    const emptyFilters = {
+      action: '',
+      entityType: '',
+      startDate: '',
+      endDate: '',
+    }
+    setFilters(emptyFilters)
+    setPageLoading(true)
+    fetchAuditLogs(emptyFilters)
+    setFilterDrawerOpen(false)
+    showNotification.info('All filters have been removed', 'Filters Cleared')
+  }
+
   const handleRowClick = (log: AuditLog) => {
-    // Handle row click - could open a modal with details
-    console.log('Audit log clicked:', log)
+    setSelectedLog(log)
+    setDetailsModalOpen(true)
+  }
+
+  const handleExport = async () => {
+    try {
+      showNotification.info('Preparing audit logs export', 'Exporting...')
+
+      const response = await fetch('/api/audit-logs', {
+        credentials: 'include',
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to export audit logs')
+      }
+
+      const data: AuditLogsResponse = await response.json()
+      
+      // Convert to CSV
+      const headers = ['Timestamp', 'User', 'Action', 'Resource', 'IP Address', 'Status', 'Details']
+      const csvRows = [
+        headers.join(','),
+        ...data.logs.map(log => [
+          log.timestamp,
+          log.user,
+          log.action,
+          log.resource,
+          log.ip,
+          log.status,
+          `"${log.details.replace(/"/g, '""')}"` // Escape quotes in details
+        ].join(','))
+      ]
+      
+      const csvContent = csvRows.join('\n')
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      
+      link.setAttribute('href', url)
+      link.setAttribute('download', `audit-logs-${new Date().toISOString().split('T')[0]}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      showNotification.success('Audit logs exported successfully')
+    } catch (error) {
+      console.error('Error exporting audit logs:', error)
+      showNotification.error('Failed to export audit logs')
+    }
   }
 
   // Column definitions for the DataTable
@@ -508,7 +438,58 @@ export default function AuditLogsPage() {
     },
   ]
 
-  const stickyContent = (
+  const auditStats = statistics ? [
+    {
+      title: "Total Events",
+      value: statistics.totalEvents.value.toLocaleString(),
+      icon: IconFileText,
+      color: "blue",
+      change: `+${statistics.totalEvents.todayChange} today`,
+      description: "All system activities",
+    },
+    {
+      title: "User Actions",
+      value: statistics.userActions.value.toLocaleString(),
+      icon: IconUser,
+      color: "green",
+      change: `+${statistics.userActions.todayChange} today`,
+      description: "User-initiated activities",
+    },
+    {
+      title: "System Events",
+      value: statistics.systemEvents.value.toLocaleString(),
+      icon: IconSettings,
+      color: "orange",
+      change: `+${statistics.systemEvents.todayChange} today`,
+      description: "Automated system processes",
+    },
+    {
+      title: "Security Events",
+      value: statistics.securityEvents.value.toLocaleString(),
+      icon: IconShield,
+      color: "red",
+      change: `+${statistics.securityEvents.todayChange} today`,
+      description: "Security-related activities",
+    },
+    {
+      title: "Failed Actions",
+      value: statistics.failedActions.value.toLocaleString(),
+      icon: IconTrash,
+      color: "red",
+      change: `+${statistics.failedActions.todayChange} today`,
+      description: "Failed operations",
+    },
+    {
+      title: "API Calls",
+      value: statistics.apiCalls.value.toLocaleString(),
+      icon: IconFileText,
+      color: "violet",
+      change: `+${statistics.apiCalls.todayChange} today`,
+      description: "External API interactions",
+    },
+  ] : []
+
+  const stickyContent = statistics ? (
     <Grid>
       {auditStats.map((stat, index) => (
         <Grid.Col key={index} span={{ base: 12, sm: 6, md: 4, lg: 2 }}>
@@ -527,7 +508,7 @@ export default function AuditLogsPage() {
         </Grid.Col>
       ))}
     </Grid>
-  )
+  ) : null
 
   if (pageLoading) {
     return (
@@ -552,22 +533,171 @@ export default function AuditLogsPage() {
   }
 
   return (
-    <PageLayout
-      title="Audit Logs"
-      subtitle="Monitor system activities and user actions"
-      showBackButton={false}
-      stickyContent={stickyContent}
-      actions={
-        <Group>
-          <Button leftSection={<IconFilter size={16} />} variant="light">
-            Filter
-          </Button>
-          <Button leftSection={<IconDownload size={16} />}>
-            Export Logs
-          </Button>
-        </Group>
-      }
-    >
+    <>
+      {/* Filter Drawer */}
+      <Drawer
+        opened={filterDrawerOpen}
+        onClose={() => setFilterDrawerOpen(false)}
+        title="Filter Audit Logs"
+        position="right"
+        size="md"
+      >
+        <Stack gap="md">
+          <Select
+            label="Action Type"
+            placeholder="Select action type"
+            value={filters.action}
+            onChange={(value) => setFilters({ ...filters, action: value || '' })}
+            data={[
+              { value: '', label: 'All Actions' },
+              { value: 'CREATE', label: 'Create' },
+              { value: 'UPDATE', label: 'Update' },
+              { value: 'DELETE', label: 'Delete' },
+              { value: 'LOGIN', label: 'Login' },
+              { value: 'LOGOUT', label: 'Logout' },
+              { value: 'SUBMIT_INVOICE', label: 'Submit Invoice' },
+              { value: 'APPROVE_INVOICE', label: 'Approve Invoice' },
+              { value: 'REJECT_INVOICE', label: 'Reject Invoice' },
+              { value: 'CONFIGURE_PROVIDER', label: 'Configure Provider' },
+              { value: 'CREATE_TENANT', label: 'Create Tenant' },
+              { value: 'SUSPEND_TENANT', label: 'Suspend Tenant' },
+              { value: 'ACTIVATE_TENANT', label: 'Activate Tenant' },
+              { value: 'WEBHOOK_RECEIVED', label: 'Webhook Received' },
+              { value: 'SYNC_INVOICES', label: 'Sync Invoices' },
+            ]}
+            clearable
+          />
+
+          <TextInput
+            label="Entity Type"
+            placeholder="e.g., Invoice, User, Customer"
+            value={filters.entityType}
+            onChange={(e) => setFilters({ ...filters, entityType: e.currentTarget.value })}
+          />
+
+          <TextInput
+            label="Start Date"
+            type="date"
+            value={filters.startDate}
+            onChange={(e) => setFilters({ ...filters, startDate: e.currentTarget.value })}
+          />
+
+          <TextInput
+            label="End Date"
+            type="date"
+            value={filters.endDate}
+            onChange={(e) => setFilters({ ...filters, endDate: e.currentTarget.value })}
+          />
+
+          <Group justify="space-between" mt="md">
+            <Button variant="subtle" onClick={clearFilters}>
+              Clear Filters
+            </Button>
+            <Button onClick={applyFilters}>
+              Apply Filters
+            </Button>
+          </Group>
+        </Stack>
+      </Drawer>
+
+      {/* Details Modal */}
+      <Modal
+        opened={detailsModalOpen}
+        onClose={() => setDetailsModalOpen(false)}
+        title="Audit Log Details"
+        size="lg"
+      >
+        {selectedLog && (
+          <Stack gap="md">
+            <Group>
+              <Avatar size="lg" radius="xl" color={selectedLog.user === 'System' ? 'blue' : 'gray'}>
+                {selectedLog.avatar}
+              </Avatar>
+              <Box style={{ flex: 1 }}>
+                <Text size="lg" fw={600}>{selectedLog.user}</Text>
+                <Text size="sm" c="dimmed">{selectedLog.ip}</Text>
+              </Box>
+              <Badge color={getStatusColor(selectedLog.status)} variant="light">
+                {selectedLog.status}
+              </Badge>
+            </Group>
+
+            <Box>
+              <Text size="sm" c="dimmed" mb={4}>Action</Text>
+              <Group gap="xs">
+                <Badge color={getTypeColor(selectedLog.type)} variant="light">
+                  {selectedLog.type}
+                </Badge>
+                <Badge color={getSeverityColor(selectedLog.severity)} variant="dot">
+                  {selectedLog.severity}
+                </Badge>
+                <Text size="sm" fw={500}>{selectedLog.action}</Text>
+              </Group>
+            </Box>
+
+            <Box>
+              <Text size="sm" c="dimmed" mb={4}>Resource</Text>
+              <Text size="sm">{selectedLog.resource}</Text>
+              {selectedLog.entityId && (
+                <Text size="xs" c="dimmed">ID: {selectedLog.entityId}</Text>
+              )}
+            </Box>
+
+            <Box>
+              <Text size="sm" c="dimmed" mb={4}>Description</Text>
+              <Text size="sm">{selectedLog.details}</Text>
+            </Box>
+
+            <Box>
+              <Text size="sm" c="dimmed" mb={4}>Timestamp</Text>
+              <Text size="sm">
+                {new Date(selectedLog.timestamp).toLocaleString()}
+              </Text>
+            </Box>
+
+            {selectedLog.userAgent && (
+              <Box>
+                <Text size="sm" c="dimmed" mb={4}>User Agent</Text>
+                <Text size="xs" style={{ wordBreak: 'break-all' }}>
+                  {selectedLog.userAgent}
+                </Text>
+              </Box>
+            )}
+
+            {selectedLog.metadata && (
+              <Box>
+                <Text size="sm" c="dimmed" mb={4}>Metadata</Text>
+                <Paper p="sm" bg="gray.0" style={{ overflowX: 'auto' }}>
+                  <Text size="xs" component="pre" style={{ margin: 0 }}>
+                    {JSON.stringify(selectedLog.metadata, null, 2)}
+                  </Text>
+                </Paper>
+              </Box>
+            )}
+          </Stack>
+        )}
+      </Modal>
+
+      <PageLayout
+        title="Audit Logs"
+        subtitle="Monitor system activities and user actions"
+        showBackButton={false}
+        stickyContent={stickyContent}
+        actions={
+          <Group>
+            <Button 
+              leftSection={<IconFilter size={16} />} 
+              variant="light"
+              onClick={() => setFilterDrawerOpen(true)}
+            >
+              Filter
+            </Button>
+            <Button leftSection={<IconDownload size={16} />} onClick={handleExport}>
+              Export Logs
+            </Button>
+          </Group>
+        }
+      >
 
       <Flex direction={{ base: 'column', lg: 'row' }} gap="md">
         <Box style={{ flex: '1 1 70%' }}>
@@ -585,33 +715,44 @@ export default function AuditLogsPage() {
           <Paper p="lg" radius="md" withBorder>
             <Title order={4} mb="md">Recent Activity</Title>
             <Stack gap="md">
-              {recentActivity.map((activity, index) => (
-                <Card key={index} padding="sm" radius="md" withBorder>
-                  <Group gap="sm" align="flex-start">
-                    <ActionIcon
-                      size="sm"
-                      radius="xl"
-                      variant="light"
-                      color={activity.color}
-                    >
-                      <activity.icon size={12} />
-                    </ActionIcon>
-                    <Box style={{ flex: 1 }}>
-                      <Text size="sm" fw={500}>{activity.action}</Text>
-                      <Text c="dimmed" size="sm">
-                        by {activity.user}
-                      </Text>
-                      <Text size="xs" c="dimmed">
-                        {activity.time}
-                      </Text>
-                    </Box>
-                  </Group>
-                </Card>
-              ))}
+              {recentActivity.length > 0 ? (
+                recentActivity.map((activity, index) => {
+                  const ActivityIcon = getIconForActionType(activity.actionType)
+                  const color = getColorForActionType(activity.actionType)
+                  return (
+                    <Card key={index} padding="sm" radius="md" withBorder>
+                      <Group gap="sm" align="flex-start">
+                        <ActionIcon
+                          size="sm"
+                          radius="xl"
+                          variant="light"
+                          color={color}
+                        >
+                          <ActivityIcon size={12} />
+                        </ActionIcon>
+                        <Box style={{ flex: 1 }}>
+                          <Text size="sm" fw={500}>{activity.action}</Text>
+                          <Text c="dimmed" size="sm">
+                            by {activity.user}
+                          </Text>
+                          <Text size="xs" c="dimmed">
+                            {activity.time}
+                          </Text>
+                        </Box>
+                      </Group>
+                    </Card>
+                  )
+                })
+              ) : (
+                <Text c="dimmed" size="sm" ta="center">
+                  No recent activity
+                </Text>
+              )}
             </Stack>
           </Paper>
         </Box>
       </Flex>
-    </PageLayout>
+      </PageLayout>
+    </>
   )
 }

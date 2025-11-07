@@ -1,19 +1,21 @@
 .stickyHeader {
-  position: relative; /* Position relative to the main layout */
+  position: relative;
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
-  border: none;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 4px 20px rgba(15, 23, 42, 0.25);
-  margin-left: calc(-1 * var(--mantine-spacing-md));
-  margin-right: calc(-1 * var(--mantine-spacing-md));
-  margin-top: calc(-1 * var(--mantine-spacing-md) - 1.25rem); /* Account for main layout padding */
-  padding-left: var(--mantine-spacing-md);
-  padding-right: var(--mantine-spacing-md);
-  padding-top: 2.5rem; /* Increased top padding to eliminate gaps */
-  padding-bottom: 2rem; /* Header padding */
-  margin-bottom: 1.5rem; /* Add margin to push content down */
+  z-index: 95; /* Ensure header is above content */
+
+  
+  /* Internal padding for content */
+  /* padding-left: var(--mantine-spacing-md);
+  padding-right: var(--mantine-spacing-md); */
+  /* padding-top: 1rem;
+  padding-bottom: 1.5rem; */
+  padding: 1.5rem;
+  margin-top: -1.25rem;
+  margin-bottom: 1rem;
   color: white;
 }
 
@@ -33,9 +35,9 @@
   }
 }
 
-/* No overlap - content flows normally */
+/* Content spacing - flows normally after header */
 .overlapContent {
-  margin-top: 0; /* Remove overlap so content is visible */
+  margin-top: 0; /* No overlap for clean content flow */
   position: relative;
   z-index: 90;
 }
@@ -43,18 +45,20 @@
 /* Mobile responsiveness */
 @media (max-width: 768px) {
   .stickyHeader {
-    top: var(--app-header-height, 60px);
-    padding-top: 1rem; /* Add top padding on mobile */
-    padding-bottom: 2rem; /* Increased bottom padding on mobile */
-    margin-left: calc(-1 * 1.25rem);
-    margin-right: calc(-1 * 1.25rem);
-    margin-top: calc(-1 * 1.25rem);
+    /* Align with mobile layout padding (1.25rem) */
+    margin-left: -1.25rem;
+    margin-right: -1.25rem;
+    margin-top: -1.25rem;
+
+    /* Mobile-specific padding */
     padding-left: 1.25rem;
     padding-right: 1.25rem;
+    padding-top: 1rem;
+    padding-bottom: 1.25rem;
   }
 
   .overlapContent {
-    margin-top: -0.75rem; /* Reduced overlap on mobile */
-    z-index: 90; /* Consistent z-index on mobile */
+    margin-top: 0;
+    z-index: 90;
   }
 }

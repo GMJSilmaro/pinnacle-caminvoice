@@ -237,12 +237,11 @@ export function createEmptyAllowanceCharge(): AllowanceChargeFormItem {
 }
 
 /**
- * Format currency amount for display
+ * Format currency amount for display (KHR - Cambodian Riel, no currency symbol)
  */
-export function formatCurrency(amount: number, currency: string = 'USD'): string {
+export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: currency,
+    style: 'decimal',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   }).format(amount)

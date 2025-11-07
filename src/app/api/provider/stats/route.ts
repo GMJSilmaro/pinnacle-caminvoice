@@ -125,7 +125,9 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    const monthlyRevenue = monthlyRevenueResult._sum.totalAmount || 0
+    const monthlyRevenue = monthlyRevenueResult._sum.totalAmount 
+      ? Number(monthlyRevenueResult._sum.totalAmount) 
+      : 0
 
     // Get last month revenue for comparison
     const lastMonthRevenueResult = await prisma.invoice.aggregate({
@@ -141,7 +143,9 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    const lastMonthRevenue = lastMonthRevenueResult._sum.totalAmount || 0
+    const lastMonthRevenue = lastMonthRevenueResult._sum.totalAmount 
+      ? Number(lastMonthRevenueResult._sum.totalAmount) 
+      : 0
 
     // Calculate monthly revenue growth
     const monthlyRevenueGrowth = lastMonthRevenue > 0 

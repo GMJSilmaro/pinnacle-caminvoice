@@ -32,10 +32,11 @@ export default function PartyDetailsForm({
   
   const handleChange = (field: string, value: string, nestedField?: string) => {
     if (nestedField) {
+      const fieldValue = party[field as keyof Party]
       onChange({
         ...party,
         [field]: {
-          ...party[field as keyof Party],
+          ...(fieldValue && typeof fieldValue === 'object' && !Array.isArray(fieldValue) ? fieldValue : {}),
           [nestedField]: value
         }
       })

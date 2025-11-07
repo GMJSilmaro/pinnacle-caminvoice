@@ -23,8 +23,8 @@ import {
   IconShieldX,
 } from '@tabler/icons-react'
 import { useForm } from '@mantine/form'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useParams } from 'next/navigation'
 import { showNotification } from '../../../../../utils/notifications'
 import PageLayout from '../../../../../components/layouts/PageLayout'
 
@@ -49,8 +49,11 @@ const mockCustomer = {
   preferredCurrency: 'USD',
 }
 
-export default function EditCustomerPage({ params }: { params: { id: string } }) {
+export default function EditCustomerPage() {
   const router = useRouter()
+  const params = useParams<{ id: string }>()
+  const id = (params?.id as string) || ''
+
   const [camInvRegistered, setCamInvRegistered] = useState(mockCustomer.camInvRegistered)
 
   const form = useForm({
@@ -84,25 +87,67 @@ export default function EditCustomerPage({ params }: { params: { id: string } })
       address: (value) => (!value ? 'Address is required' : null),
     },
   })
+  // Load customer details
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/customers/${id}`, { credentials: 'include' })
+        const body = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(body.error || 'Failed to load customer')
+        const c = (body as any).customer || {}
+        form.setValues({
+          name: c.name || '',
+          businessName: c.businessName || c.name || '',
+          taxId: c.taxId || '',
+          email: c.email || '',
+          phone: c.phone || '',
+          address: c.address || '',
+          city: c.city || '',
+          country: c.country || 'Cambodia',
+          postalCode: c.postalCode || '',
+          status: (c.status === 'INACTIVE' ? 'inactive' : 'active'),
+          camInvEndpointId: c.camInvEndpointId || '',
+          notes: c.notes || '',
+          paymentTerms: c.paymentTerms || 30,
+          creditLimit: c.creditLimit || 0,
+          preferredCurrency: c.preferredCurrency || 'USD',
+        })
+        setCamInvRegistered(Boolean(c.camInvEndpointId))
+      } catch (err: any) {
+        showNotification.error(err?.message || 'Failed to load customer')
+      }
+    })()
+    return () => { mounted = false }
+  }, [id])
+
 
   const handleSubmit = async (values: typeof form.values) => {
     try {
-      // TODO: Implement server action to update customer
-      const customerData = {
-        ...values,
-        camInvRegistered,
-        id: params.id,
+      const payload = {
+        name: values.name,
+        email: values.email,
+        phone: values.phone,
+        status: values.status?.toUpperCase() === 'ACTIVE' ? 'ACTIVE' : values.status?.toUpperCase() === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
+        address: values.address,
+        city: values.city,
+        country: values.country,
       }
-      
-      console.log('Updating customer:', customerData)
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      // Redirect back to customer detail page
-      router.push(`/customers/${params.id}`)
-    } catch (error) {
-      console.error('Failed to update customer:', error)
+      const res = await fetch(`/api/customers/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body.error || 'Failed to update customer')
+      showNotification.success('Customer updated successfully')
+      router.push(`/customers/${id}`)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('customers:refresh'))
+      }
+    } catch (error: any) {
+      showNotification.error(error?.message || 'Failed to update customer')
     }
   }
 
@@ -114,7 +159,7 @@ export default function EditCustomerPage({ params }: { params: { id: string } })
         <Button
           variant="light"
           leftSection={<IconArrowLeft size={16} />}
-          onClick={() => router.push(`/customers/${params.id}`)}
+          onClick={() => router.push(`/customers/${id}`)}
         >
           Back to Customer
         </Button>
@@ -123,8 +168,8 @@ export default function EditCustomerPage({ params }: { params: { id: string } })
       <form onSubmit={form.onSubmit(handleSubmit)}>
         <Stack gap="xl">
           {/* CamInvoice Status */}
-          <Alert 
-            color={camInvRegistered ? "green" : "orange"} 
+          <Alert
+            color={camInvRegistered ? "green" : "orange"}
             icon={camInvRegistered ? <IconShieldCheck size={16} /> : <IconShieldX size={16} />}
           >
             <Group justify="space-between" align="center">
@@ -133,7 +178,7 @@ export default function EditCustomerPage({ params }: { params: { id: string } })
                   CamInvoice Registration Status
                 </Text>
                 <Text size="sm">
-                  {camInvRegistered 
+                  {camInvRegistered
                     ? 'This customer is registered with CamInvoice and can receive e-invoices.'
                     : 'This customer is not registered with CamInvoice. Manual invoice delivery required.'
                   }
@@ -149,7 +194,7 @@ export default function EditCustomerPage({ params }: { params: { id: string } })
           <Card withBorder>
             <Stack gap="md">
               <Title order={4}>Basic Information</Title>
-              
+
               <Grid>
                 <Grid.Col span={{ base: 12, md: 6 }}>
                   <TextInput
@@ -194,7 +239,7 @@ export default function EditCustomerPage({ params }: { params: { id: string } })
           <Card withBorder>
             <Stack gap="md">
               <Title order={4}>Contact Information</Title>
-              
+
               <Grid>
                 <Grid.Col span={{ base: 12, md: 6 }}>
                   <TextInput
@@ -255,7 +300,7 @@ export default function EditCustomerPage({ params }: { params: { id: string } })
           <Card withBorder>
             <Stack gap="md">
               <Title order={4}>CamInvoice Settings</Title>
-              
+
               <Switch
                 label="Registered with CamInvoice"
                 description="Enable this if the customer is registered with the Cambodia e-Invoicing system"
@@ -278,7 +323,7 @@ export default function EditCustomerPage({ params }: { params: { id: string } })
           <Card withBorder>
             <Stack gap="md">
               <Title order={4}>Business Settings</Title>
-              
+
               <Grid>
                 <Grid.Col span={{ base: 12, md: 4 }}>
                   <Select

@@ -21,6 +21,7 @@ import {
   Box,
   NumberInput,
 } from '@mantine/core'
+import { TenantLogoUploader } from '@/components/settings/TenantLogoUploader.client'
 import {
   IconUser,
   IconBuilding,
@@ -322,22 +323,24 @@ export default function SettingsPage() {
       actions={headerActions}
     >
       <Stack gap="xl">
-
         {/* Settings Tabs */}
         <Tabs value={activeTab} onChange={setActiveTab}>
           <Tabs.List>
             <Tabs.Tab value="company" leftSection={<IconBuilding size={16} />}>
               Company Profile
             </Tabs.Tab>
-            <Tabs.Tab value="notifications" leftSection={<IconBell size={16} />}>
+            <Tabs.Tab
+              value="notifications"
+              leftSection={<IconBell size={16} />}
+            >
               Notifications
             </Tabs.Tab>
-            <Tabs.Tab value="security" leftSection={<IconShield size={16} />}>
+            {/* <Tabs.Tab value="security" leftSection={<IconShield size={16} />}>
               Security
-            </Tabs.Tab>
+            </Tabs.Tab>*/}
             <Tabs.Tab value="system" leftSection={<IconSettings size={16} />}>
-              System
-            </Tabs.Tab>
+              System Integration
+            </Tabs.Tab> 
           </Tabs.List>
 
           {/* Company Profile Tab */}
@@ -350,16 +353,24 @@ export default function SettingsPage() {
                       <Group>
                         <IconBuilding size={24} />
                         <Title order={3}>Company Information</Title>
-                        <Badge color="blue" variant="light">Required for CamInvoice</Badge>
+                        <Badge color="blue" variant="light">
+                          Required for CamInvoice
+                        </Badge>
                       </Group>
-                      
+
+                      {/* Company Logo Uploader */}
+                      <div>
+                        {/* Client component handles fetching and upload */}
+                        <TenantLogoUploader />
+                      </div>
+
                       <Grid>
                         <Grid.Col span={{ base: 12, md: 6 }}>
                           <TextInput
                             label="Company Name"
                             placeholder="Enter company name"
                             required
-                            {...companyForm.getInputProps('companyName')}
+                            {...companyForm.getInputProps("companyName")}
                           />
                         </Grid.Col>
                         <Grid.Col span={{ base: 12, md: 6 }}>
@@ -367,21 +378,21 @@ export default function SettingsPage() {
                             label="Tax ID"
                             placeholder="Enter tax identification number"
                             required
-                            {...companyForm.getInputProps('taxId')}
+                            {...companyForm.getInputProps("taxId")}
                           />
                         </Grid.Col>
                         <Grid.Col span={{ base: 12, md: 6 }}>
                           <TextInput
-                            label="Registration Number"
+                            label="VATTIN"
                             placeholder="Enter business registration number"
-                            {...companyForm.getInputProps('registrationNumber')}
+                            {...companyForm.getInputProps("registrationNumber")}
                           />
                         </Grid.Col>
                         <Grid.Col span={{ base: 12, md: 6 }}>
                           <TextInput
                             label="Website"
                             placeholder="https://yourcompany.com"
-                            {...companyForm.getInputProps('website')}
+                            {...companyForm.getInputProps("website")}
                           />
                         </Grid.Col>
                       </Grid>
@@ -395,7 +406,7 @@ export default function SettingsPage() {
                             label="Address"
                             placeholder="Enter business address"
                             required
-                            {...companyForm.getInputProps('address')}
+                            {...companyForm.getInputProps("address")}
                           />
                         </Grid.Col>
                         <Grid.Col span={{ base: 12, md: 4 }}>
@@ -403,14 +414,14 @@ export default function SettingsPage() {
                             label="City"
                             placeholder="Enter city"
                             required
-                            {...companyForm.getInputProps('city')}
+                            {...companyForm.getInputProps("city")}
                           />
                         </Grid.Col>
                         <Grid.Col span={{ base: 12, md: 4 }}>
                           <TextInput
                             label="Postal Code"
                             placeholder="Enter postal code"
-                            {...companyForm.getInputProps('postalCode')}
+                            {...companyForm.getInputProps("postalCode")}
                           />
                         </Grid.Col>
                         <Grid.Col span={{ base: 12, md: 4 }}>
@@ -419,7 +430,7 @@ export default function SettingsPage() {
                             placeholder="Select country"
                             data={COUNTRY_OPTIONS}
                             required
-                            {...companyForm.getInputProps('country')}
+                            {...companyForm.getInputProps("country")}
                           />
                         </Grid.Col>
                         <Grid.Col span={{ base: 12, md: 6 }}>
@@ -427,7 +438,7 @@ export default function SettingsPage() {
                             label="Phone"
                             placeholder="+855 12 345 678"
                             leftSection={<IconPhone size={16} />}
-                            {...companyForm.getInputProps('phone')}
+                            {...companyForm.getInputProps("phone")}
                           />
                         </Grid.Col>
                         <Grid.Col span={{ base: 12, md: 6 }}>
@@ -436,7 +447,7 @@ export default function SettingsPage() {
                             placeholder="contact@company.com"
                             leftSection={<IconMail size={16} />}
                             required
-                            {...companyForm.getInputProps('email')}
+                            {...companyForm.getInputProps("email")}
                           />
                         </Grid.Col>
                       </Grid>
@@ -451,7 +462,7 @@ export default function SettingsPage() {
                             placeholder="Select currency"
                             data={CURRENCY_OPTIONS}
                             required
-                            {...companyForm.getInputProps('currency')}
+                            {...companyForm.getInputProps("currency")}
                           />
                         </Grid.Col>
                         <Grid.Col span={{ base: 12, md: 4 }}>
@@ -461,14 +472,14 @@ export default function SettingsPage() {
                             min={0}
                             max={100}
                             decimalScale={2}
-                            {...companyForm.getInputProps('taxRate')}
+                            {...companyForm.getInputProps("taxRate")}
                           />
                         </Grid.Col>
                         <Grid.Col span={{ base: 12, md: 4 }}>
                           <TextInput
                             label="Invoice Prefix"
                             placeholder="INV"
-                            {...companyForm.getInputProps('invoicePrefix')}
+                            {...companyForm.getInputProps("invoicePrefix")}
                           />
                         </Grid.Col>
                         <Grid.Col span={{ base: 12, md: 6 }}>
@@ -476,7 +487,7 @@ export default function SettingsPage() {
                             label="Invoice Number Start"
                             placeholder="1000"
                             min={1}
-                            {...companyForm.getInputProps('invoiceNumberStart')}
+                            {...companyForm.getInputProps("invoiceNumberStart")}
                           />
                         </Grid.Col>
                       </Grid>
@@ -492,44 +503,76 @@ export default function SettingsPage() {
             <Card withBorder>
               <Stack gap="md">
                 <Title order={3}>Notification Preferences</Title>
-                <Text size="sm" c="dimmed">Choose what notifications you want to receive</Text>
-                
+                <Text size="sm" c="dimmed">
+                  Choose what notifications you want to receive
+                </Text>
+
                 <Stack gap="sm">
                   <Switch
                     label="Email notifications for new invoices"
                     description="Receive email when invoices are created or updated"
                     checked={notifications.emailInvoices}
-                    onChange={(event) => handleNotificationChange('emailInvoices', event.currentTarget.checked)}
+                    onChange={(event) =>
+                      handleNotificationChange(
+                        "emailInvoices",
+                        event.currentTarget.checked
+                      )
+                    }
                   />
                   <Switch
                     label="CamInvoice status updates"
                     description="Get notified when invoice status changes in CamInvoice"
                     checked={notifications.camInvoiceUpdates}
-                    onChange={(event) => handleNotificationChange('camInvoiceUpdates', event.currentTarget.checked)}
+                    onChange={(event) =>
+                      handleNotificationChange(
+                        "camInvoiceUpdates",
+                        event.currentTarget.checked
+                      )
+                    }
                   />
                   <Switch
                     label="System maintenance alerts"
                     description="Receive notifications about scheduled maintenance"
                     checked={notifications.systemMaintenance}
-                    onChange={(event) => handleNotificationChange('systemMaintenance', event.currentTarget.checked)}
+                    onChange={(event) =>
+                      handleNotificationChange(
+                        "systemMaintenance",
+                        event.currentTarget.checked
+                      )
+                    }
                   />
                   <Switch
                     label="Weekly summary reports"
                     description="Get weekly email summaries of your invoice activity"
                     checked={notifications.weeklySummary}
-                    onChange={(event) => handleNotificationChange('weeklySummary', event.currentTarget.checked)}
+                    onChange={(event) =>
+                      handleNotificationChange(
+                        "weeklySummary",
+                        event.currentTarget.checked
+                      )
+                    }
                   />
                   <Switch
                     label="Marketing emails"
                     description="Receive promotional emails and product updates"
                     checked={notifications.marketingEmails}
-                    onChange={(event) => handleNotificationChange('marketingEmails', event.currentTarget.checked)}
+                    onChange={(event) =>
+                      handleNotificationChange(
+                        "marketingEmails",
+                        event.currentTarget.checked
+                      )
+                    }
                   />
                   <Switch
                     label="Security alerts"
                     description="Get notified about important security events"
                     checked={notifications.securityAlerts}
-                    onChange={(event) => handleNotificationChange('securityAlerts', event.currentTarget.checked)}
+                    onChange={(event) =>
+                      handleNotificationChange(
+                        "securityAlerts",
+                        event.currentTarget.checked
+                      )
+                    }
                   />
                 </Stack>
               </Stack>
@@ -542,7 +585,9 @@ export default function SettingsPage() {
                 <Card withBorder>
                   <Stack gap="md">
                     <Title order={3}>Security Settings</Title>
-                    <Text size="sm" c="dimmed">Manage your account security and access</Text>
+                    <Text size="sm" c="dimmed">
+                      Manage your account security and access
+                    </Text>
 
                     <Group>
                       <Button
@@ -553,7 +598,11 @@ export default function SettingsPage() {
                       >
                         Change Password
                       </Button>
-                      <Button leftSection={<IconShield size={16} />} variant="light" disabled>
+                      <Button
+                        leftSection={<IconShield size={16} />}
+                        variant="light"
+                        disabled
+                      >
                         Enable Two-Factor Authentication
                       </Button>
                     </Group>
@@ -565,7 +614,7 @@ export default function SettingsPage() {
                       <Grid.Col span={{ base: 12, md: 6 }}>
                         <TextInput
                           label="Account ID"
-                          value={user?.id || ''}
+                          value={user?.id || ""}
                           disabled
                           description="Your unique account identifier"
                         />
@@ -573,7 +622,7 @@ export default function SettingsPage() {
                       <Grid.Col span={{ base: 12, md: 6 }}>
                         <TextInput
                           label="Account Created"
-                          value={user ? new Date(user.createdAt || '').toLocaleDateString() : ''}
+                          value={""}
                           disabled
                           description="When your account was created"
                         />
@@ -609,19 +658,27 @@ export default function SettingsPage() {
                     <Title order={4}>System Information</Title>
                     <Group justify="space-between">
                       <Text size="sm">Application Version</Text>
-                      <Text size="sm" fw={500}>v1.0.0-beta</Text>
+                      <Text size="sm" fw={500}>
+                        v1.0.0-beta
+                      </Text>
                     </Group>
                     <Group justify="space-between">
                       <Text size="sm">Last Update</Text>
-                      <Text size="sm" fw={500}>{new Date().toLocaleDateString()}</Text>
+                      <Text size="sm" fw={500}>
+                        {new Date().toLocaleDateString()}
+                      </Text>
                     </Group>
                     <Group justify="space-between">
                       <Text size="sm">Environment</Text>
-                      <Badge color="orange" variant="light">Development</Badge>
+                      <Badge color="orange" variant="light">
+                        Development
+                      </Badge>
                     </Group>
                     <Group justify="space-between">
                       <Text size="sm">Database Status</Text>
-                      <Badge color="green" variant="light">Connected</Badge>
+                      <Badge color="green" variant="light">
+                        Connected
+                      </Badge>
                     </Group>
                   </Stack>
                 </Card>
@@ -633,20 +690,31 @@ export default function SettingsPage() {
                     <Title order={4}>CamInvoice Integration</Title>
                     <Group justify="space-between">
                       <Text size="sm">API Status</Text>
-                      <Badge color="green" variant="light">Online</Badge>
+                      <Badge color="green" variant="light">
+                        Online
+                      </Badge>
                     </Group>
                     <Group justify="space-between">
                       <Text size="sm">API Version</Text>
-                      <Text size="sm" fw={500}>v2.1</Text>
+                      <Text size="sm" fw={500}>
+                        v2.1
+                      </Text>
                     </Group>
                     <Group justify="space-between">
                       <Text size="sm">Last Sync</Text>
-                      <Text size="sm" fw={500}>2 minutes ago</Text>
+                      <Text size="sm" fw={500}>
+                        2 minutes ago
+                      </Text>
                     </Group>
                     <Group justify="space-between">
                       <Text size="sm">Provider Status</Text>
-                      <Badge color={user?.role === 'PROVIDER' ? 'green' : 'blue'} variant="light">
-                        {user?.role === 'PROVIDER' ? 'Active Provider' : 'Tenant User'}
+                      <Badge
+                        color={user?.role === "PROVIDER" ? "green" : "blue"}
+                        variant="light"
+                      >
+                        {user?.role === "PROVIDER"
+                          ? "Active Provider"
+                          : "Tenant User"}
                       </Badge>
                     </Group>
                   </Stack>
@@ -662,9 +730,9 @@ export default function SettingsPage() {
                         <Select
                           label="Language"
                           data={[
-                            { value: 'en', label: 'English' },
-                            { value: 'km', label: 'Khmer (ភាសាខ្មែរ)' },
-                            { value: 'th', label: 'Thai (ไทย)' },
+                            { value: "en", label: "English" },
+                            { value: "km", label: "Khmer (ភាសាខ្មែរ)" },
+                            { value: "th", label: "Thai (ไทย)" },
                           ]}
                           defaultValue="en"
                         />
@@ -673,9 +741,9 @@ export default function SettingsPage() {
                         <Select
                           label="Date Format"
                           data={[
-                            { value: 'MM/DD/YYYY', label: 'MM/DD/YYYY' },
-                            { value: 'DD/MM/YYYY', label: 'DD/MM/YYYY' },
-                            { value: 'YYYY-MM-DD', label: 'YYYY-MM-DD' },
+                            { value: "MM/DD/YYYY", label: "MM/DD/YYYY" },
+                            { value: "DD/MM/YYYY", label: "DD/MM/YYYY" },
+                            { value: "YYYY-MM-DD", label: "YYYY-MM-DD" },
                           ]}
                           defaultValue="MM/DD/YYYY"
                         />
@@ -684,8 +752,8 @@ export default function SettingsPage() {
                         <Select
                           label="Time Format"
                           data={[
-                            { value: '12h', label: '12 Hour (AM/PM)' },
-                            { value: '24h', label: '24 Hour' },
+                            { value: "12h", label: "12 Hour (AM/PM)" },
+                            { value: "24h", label: "24 Hour" },
                           ]}
                           defaultValue="12h"
                         />
@@ -699,5 +767,5 @@ export default function SettingsPage() {
         </Tabs>
       </Stack>
     </PageLayout>
-  )
+  );
 }

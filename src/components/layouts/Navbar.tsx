@@ -1,7 +1,10 @@
 "use client"
+
 import {
   ActionIcon,
   Badge,
+  Box,
+  Collapse,
   Flex,
   Group,
   Popover,
@@ -14,6 +17,7 @@ import {
 } from "@mantine/core"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useEffect, useState } from "react"
 import {
   IconHome,
   IconSearch,
@@ -23,15 +27,27 @@ import {
   IconLogs,
   IconFileText,
   IconShieldCheck,
-  IconPlugConnected,
-  IconUserCog
+  IconUserCog,
+  IconDatabase,
+  IconChevronDown,
+  IconChevronRight,
+  IconTemplate,
+  IconFilePlus,
+  IconFileUpload,
+  IconFileInvoice,
+  IconNote,
 } from "@tabler/icons-react"
-import { MantineLogoRounded } from "../MantineLogoRounded"
-import ThemeSwitch from "../ThemeSwitch"
-import VersionUpdate from "../navigation/VersionUpdate"
 import { useStore } from "../../store/useStore"
 import { useAuth } from "../../hooks/useAuth"
 import classes from "./styles/Navbar.module.css"
+
+interface SubNavLink {
+  id: number
+  icon?: any
+  title: string
+  link: string
+  roleRequired?: string
+}
 
 interface NavLink {
   id: number
@@ -39,6 +55,7 @@ interface NavLink {
   title: string
   link: string
   roleRequired?: string
+  subLinks?: SubNavLink[]
 }
 
 interface NavSection {
@@ -56,19 +73,47 @@ const navigationSections: NavSection[] = [
         id: 1,
         icon: IconHome,
         title: "Dashboard",
-        link: "/",
+        link: "/portal",
       },
       {
         id: 2,
         icon: IconReceipt,
         title: "Invoices",
         link: "/invoices",
+        subLinks: [
+          {
+            id: 21,
+            icon: IconFilePlus,
+            title: "View Invoice",
+            link: "/invoices",
+          },
+          {
+            id: 22,
+            icon: IconFileUpload,
+            title: "Upload Excel Invoice",
+            link: "/invoices/bulk-upload",
+          },
+        ],
       },
       {
         id: 3,
-        icon: IconFileText,
-        title: "Credit/Debit Notes",
+        icon: IconNote,
+        title: "Credit/Debit Note",
         link: "/credit-notes",
+        subLinks: [
+          {
+            id: 31,
+            icon: IconFilePlus,
+            title: "View Credit/Debit Note",
+            link: "/credit-notes",
+          },
+          {
+            id: 32,
+            icon: IconFileUpload,
+            title: "Upload Excel Credit/Debit Note",
+            link: "/credit-notes/bulk-upload",
+          },
+        ],
       },
       {
         id: 4,
@@ -76,13 +121,26 @@ const navigationSections: NavSection[] = [
         title: "Customers",
         link: "/customers",
       },
+      // {
+      //   id: 5,
+      //   icon: IconDatabase,
+      //   title: "Data Export",
+      //   link: "/data-export",
+      // },
+    ],
+  },
+  {
+    title: "CamInvoice",
+    shortTitle: "CAMINV",
+    links: [
       {
         id: 5,
-        icon: IconUserCog,
-        title: "User Management",
-        link: "/users",
+        icon: IconShieldCheck,
+        title: "Provider Admin",
+        link: "/provider",
+        roleRequired: "PROVIDER", // Only show for provider role
       },
-    ]
+    ],
   },
   {
     title: "System",
@@ -95,28 +153,22 @@ const navigationSections: NavSection[] = [
         link: "/audit-logs",
       },
       {
-        id: 7,
-        icon: IconSettings,
-        title: "Settings",
-        link: "/settings",
-      },
-      {
         id: 8,
-        icon: IconShieldCheck,
-        title: "Provider Connection",
-        link: "/connection",
-        roleRequired: "PROVIDER", // Only show for provider role
+        icon: IconUserCog,
+        title: "User Management",
+        link: "/users",
       },
-       {
-        id: 9,
-        icon: IconShieldCheck,
-        title: "Provider Admin",
-        link: "/provider",
-        roleRequired: "PROVIDER", // Only show for provider role
-      },
-    ]
-  }
-]
+      // {
+      //   id: 9,
+      //   icon: IconSettings,
+      //   title: "Settings",
+      //   link: "/settings",
+      //   roleRequired: "TENANT_ADMIN",
+      // },
+      
+    ],
+  },
+];
 
 export default function Navbar() {
   const { isNavbarCollapse, toggleNavbar } = useStore()
@@ -125,6 +177,36 @@ export default function Navbar() {
   // Get user role from authentication context
   const { user, loading } = useAuth()
   const userRole = user?.role || null
+
+  // State to track which nav items with sublinks are expanded (default: Invoices and Credit/Debit Notes expanded)
+  const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set([2, 3]))
+
+  // Toggle expanded state for a nav item
+  const toggleExpanded = (id: number) => {
+    setExpandedItems(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(id)) {
+        newSet.delete(id)
+      } else {
+        newSet.add(id)
+      }
+      return newSet
+    })
+  }
+
+  // Tenant logo state
+  const [logoSrc, setLogoSrc] = useState<string>("/")
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch('/api/settings/logo', { credentials: 'include', cache: 'no-store' })
+        if (!res.ok) return
+        const data = await res.json()
+        if (data?.dataUrl) setLogoSrc(data.dataUrl)
+      } catch {}
+    }
+    load()
+  }, [])
 
   // Filter navigation sections based on user role
   const filteredSections = navigationSections
@@ -141,6 +223,12 @@ export default function Navbar() {
     }))
     .filter(section => section.links.length > 0) // Remove empty sections
 
+
+  // Prevent hydration mismatches by rendering only after mount (matches Header pattern)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+  if (!mounted) return null
+
   return (
     <Stack
       className="hideScrollbar"
@@ -152,57 +240,30 @@ export default function Navbar() {
       justify="space-between"
       h="100%"
     >
-      <Flex w="100%" gap={18} direction="column" align="start">
+      <Flex w="100%" gap={12} direction="column" align="start">
         <Group
-          w="100%"
           align="center"
-          justify={isNavbarCollapse ? "center" : "space-between"}
+          justify="space-between"
+          w="100%"
         >
-          <Flex align="center" gap={6}>
-            <MantineLogoRounded size={30} color="orange" />
-            {!isNavbarCollapse && (
-              <Text className={classes.appTitle} fw={600}>
-                CamInvoice
-              </Text>
-            )}
+          <Flex align="center" gap={2}>
+            <img
+              src={logoSrc}
+              alt="Pinnacle Logo"
+              style={{
+                display: 'block',
+                height: 'auto',
+                width: 'auto',
+                maxHeight: isNavbarCollapse ? 32 : 180,
+                maxWidth: isNavbarCollapse ? 32 : 180,
+                objectFit: 'contain',
+              }}
+              decoding="async"
+              loading="eager"
+            />
           </Flex>
 
-          {!isNavbarCollapse && (
-            <Switch
-              checked={!isNavbarCollapse}
-              onChange={toggleNavbar}
-              visibleFrom="md"
-              styles={{
-                root: {
-                  height: "100%",
-                },
-                body: {
-                  height: "100%",
-                },
-                track: {
-                  cursor: "pointer",
-                  height: "100%",
-                  minWidth: rem(26),
-                  width: rem(20),
-                },
-                thumb: {
-                  "--switch-track-label-padding": "-1px",
-                  height: "90%",
-                  width: rem(12),
-                  borderRadius: rem(3),
-                  insetInlineStart: "var(--switch-thumb-start, 1px)",
-                },
-              }}
-              h={22}
-              radius={4}
-              defaultChecked
-            />
-          )}
-        </Group>
-
-        {isNavbarCollapse && (
           <Switch
-            m="auto"
             checked={!isNavbarCollapse}
             onChange={toggleNavbar}
             visibleFrom="md"
@@ -227,11 +288,10 @@ export default function Navbar() {
                 insetInlineStart: "var(--switch-thumb-start, 1px)",
               },
             }}
-            h={22}
+            h={20}
             radius={4}
-            defaultChecked
           />
-        )}
+        </Group>
 
         {isNavbarCollapse ? (
           <Popover width={200} position="bottom" withArrow shadow="md">
@@ -290,41 +350,190 @@ export default function Navbar() {
               {isNavbarCollapse ? section.shortTitle : section.title}
             </Text>
             <Flex w="100%" gap={6} direction="column" align={"start"}>
-              {section.links.map(({ id, icon: Icon, title, link }) => {
+              {section.links.map(({ id, icon: Icon, title, link, subLinks }) => {
                 const isActive = pathname === link
-                return isNavbarCollapse ? (
-                  <Tooltip
-                    position="right"
-                    transitionProps={{
-                      transition: "rotate-right",
-                    }}
-                    key={id}
-                    label={
-                      <Text fw={500} fz={13}>
-                        {title}
-                      </Text>
-                    }
-                  >
-                    <Link
-                      data-collapse={isNavbarCollapse}
-                      data-active={isActive}
-                      className={classes.navlink}
-                      href={link}
-                    >
-                      <Icon size={18} stroke={1.5} />
-                    </Link>
-                  </Tooltip>
-                ) : (
-                  <Link
-                    data-collapse={isNavbarCollapse}
-                    data-active={isActive}
-                    className={classes.navlink}
-                    href={link}
-                    key={id}
-                  >
-                    <Icon size={18} stroke={1.5} />
-                    <Text className={classes.nav_title}>{title}</Text>
-                  </Link>
+                const hasSubLinks = subLinks && subLinks.length > 0
+                const isExpanded = expandedItems.has(id)
+                const isSubLinkActive = hasSubLinks && subLinks.some(sub => pathname === sub.link)
+                
+                return (
+                  <Box key={id} w="100%">
+                    {isNavbarCollapse ? (
+                      hasSubLinks ? (
+                        <Popover width={200} position="right" withArrow shadow="md">
+                          <Popover.Target>
+                            <Tooltip
+                              position="right"
+                              transitionProps={{
+                                transition: "rotate-right",
+                              }}
+                              label={
+                                <Text fw={500} fz={13}>
+                                  {title}
+                                </Text>
+                              }
+                            >
+                              <Link
+                                data-collapse={isNavbarCollapse}
+                                data-active={isActive || isSubLinkActive}
+                                className={classes.navlink}
+                                href={link}
+                              >
+                                <Icon size={18} stroke={1.5} />
+                              </Link>
+                            </Tooltip>
+                          </Popover.Target>
+                          <Popover.Dropdown p={6}>
+                            <Stack gap={2}>
+                              {subLinks.map((subLink) => (
+                                <Link
+                                  key={subLink.id}
+                                  href={subLink.link}
+                                  style={{
+                                    textDecoration: 'none',
+                                  }}
+                                >
+                                  <Flex 
+                                    align="center" 
+                                    gap={10} 
+                                    px={10} 
+                                    py={8} 
+                                    style={{
+                                      borderRadius: 6,
+                                      backgroundColor: pathname === subLink.link ? 'var(--mantine-color-blue-0)' : 'transparent',
+                                      color: pathname === subLink.link ? 'var(--mantine-color-blue-6)' : 'var(--mantine-color-gray-7)',
+                                      transition: 'all 0.15s ease',
+                                      cursor: 'pointer',
+                                    }}
+                                    className={classes.submenuItem}
+                                  >
+                                    {subLink.icon && <subLink.icon size={16} stroke={1.8} />}
+                                    <Text fz={14} fw={pathname === subLink.link ? 500 : 400} style={{ lineHeight: 1.4, letterSpacing: '-0.025rem' }}>
+                                      {subLink.title}
+                                    </Text>
+                                  </Flex>
+                                </Link>
+                              ))}
+                            </Stack>
+                          </Popover.Dropdown>
+                        </Popover>
+                      ) : (
+                        <Tooltip
+                          position="right"
+                          transitionProps={{
+                            transition: "rotate-right",
+                          }}
+                          label={
+                            <Text fw={500} fz={13}>
+                              {title}
+                            </Text>
+                          }
+                        >
+                          <Link
+                            data-collapse={isNavbarCollapse}
+                            data-active={isActive}
+                            className={classes.navlink}
+                            href={link}
+                          >
+                            <Icon size={18} stroke={1.5} />
+                          </Link>
+                        </Tooltip>
+                      )
+                    ) : (
+                      <>
+                        {hasSubLinks ? (
+                          <Box
+                            data-collapse={isNavbarCollapse}
+                            data-active={isActive || isSubLinkActive}
+                            className={classes.navlink}
+                            onClick={() => toggleExpanded(id)}
+                            style={{ cursor: 'pointer' }}
+                          >
+                            <Icon size={18} stroke={1.5} />
+                            <Text className={classes.nav_title}>{title}</Text>
+                            {isExpanded ? (
+                              <IconChevronDown 
+                                size={16} 
+                                stroke={2} 
+                                style={{ 
+                                  marginLeft: 'auto',
+                                  opacity: 0.6,
+                                  transition: 'all 0.2s ease'
+                                }} 
+                              />
+                            ) : (
+                              <IconChevronRight 
+                                size={16} 
+                                stroke={2} 
+                                style={{ 
+                                  marginLeft: 'auto',
+                                  opacity: 0.6,
+                                  transition: 'all 0.2s ease'
+                                }} 
+                              />
+                            )}
+                          </Box>
+                        ) : (
+                          <Link
+                            data-collapse={isNavbarCollapse}
+                            data-active={isActive}
+                            className={classes.navlink}
+                            href={link}
+                          >
+                            <Icon size={18} stroke={1.5} />
+                            <Text className={classes.nav_title}>{title}</Text>
+                          </Link>
+                        )}
+                        
+                        {hasSubLinks && (
+                          <Collapse in={isExpanded}>
+                            <Stack 
+                              gap={2} 
+                              pl={28} 
+                              pt={6} 
+                              pb={4}
+                              style={{
+                                borderLeft: '2px solid var(--mantine-color-gray-2)',
+                                marginLeft: '8px',
+                              }}
+                            >
+                              {subLinks.map((subLink) => (
+                                <Link
+                                  key={subLink.id}
+                                  href={subLink.link}
+                                  style={{ textDecoration: 'none' }}
+                                >
+                                  <Flex
+                                    align="center"
+                                    gap={10}
+                                    px={12}
+                                    py={8}
+                                    style={{
+                                      borderRadius: 6,
+                                      backgroundColor: pathname === subLink.link ? 'var(--mantine-color-blue-0)' : 'transparent',
+                                      color: pathname === subLink.link ? 'var(--mantine-color-blue-6)' : 'var(--mantine-color-gray-7)',
+                                      transition: 'all 0.15s ease',
+                                      cursor: 'pointer',
+                                    }}
+                                    className={classes.submenuItem}
+                                  >
+                                    {subLink.icon && (
+                                      <Box style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                                        <subLink.icon size={16} stroke={1.8} />
+                                      </Box>
+                                    )}
+                                    <Text fz={14} fw={pathname === subLink.link ? 500 : 400} style={{ lineHeight: 1.4, letterSpacing: '-0.025rem', flex: 1 }}>
+                                      {subLink.title}
+                                    </Text>
+                                  </Flex>
+                                </Link>
+                              ))}
+                            </Stack>
+                          </Collapse>
+                        )}
+                      </>
+                    )}
+                  </Box>
                 )
               })}
             </Flex>

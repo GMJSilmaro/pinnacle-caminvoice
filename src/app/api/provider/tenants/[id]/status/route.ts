@@ -33,7 +33,7 @@ async function verifyProviderRole(request: NextRequest) {
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Verify provider role
@@ -46,7 +46,7 @@ export async function PATCH(
     }
 
     const { status } = await request.json()
-    const tenantId = params.id
+    const { id: tenantId } = await params
 
     if (!status || !['active', 'suspended', 'pending', 'inactive'].includes(status.toLowerCase())) {
       return NextResponse.json(

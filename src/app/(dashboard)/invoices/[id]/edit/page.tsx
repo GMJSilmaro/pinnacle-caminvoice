@@ -159,6 +159,24 @@ export default function EditInvoicePage() {
 
   const handleSubmit = async (values: typeof form.values) => {
     try {
+      // Validate line items have non-zero amounts
+      const hasInvalidItems = lineItems.some(item => {
+        const qty = Number(item.quantity) || 0
+        const price = Number(item.unitPrice) || 0
+        return qty <= 0 || price <= 0
+      })
+      
+      if (hasInvalidItems) {
+        showNotification.error('Line items must have quantity and unit price greater than 0', 'Invalid Line Items')
+        return
+      }
+      
+      const { total } = calculateTotals()
+      if (total <= 0) {
+        showNotification.error('Total amount must be greater than 0', 'Invalid Amount')
+        return
+      }
+      
       startLoading()
       showNotification.loading.show('updating-invoice', 'Updating invoice...')
 

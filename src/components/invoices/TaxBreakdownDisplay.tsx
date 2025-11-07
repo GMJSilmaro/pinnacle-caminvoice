@@ -10,18 +10,17 @@ import {
   Title
 } from '@mantine/core'
 import { IconReceipt } from '@tabler/icons-react'
-import { TaxTotal, formatCurrency, getTaxBreakdownSummary } from '../../utils/invoiceCalculations'
+import { TaxTotal } from '../../types/invoice'
+import { formatCurrency, getTaxBreakdownSummary } from '../../utils/invoiceCalculations'
 
 interface TaxBreakdownDisplayProps {
   taxTotal: TaxTotal
-  currency: string
   title?: string
 }
 
-export default function TaxBreakdownDisplay({ 
-  taxTotal, 
-  currency, 
-  title = "Tax Breakdown" 
+export default function TaxBreakdownDisplay({
+  taxTotal,
+  title = "Tax Breakdown"
 }: TaxBreakdownDisplayProps) {
   const taxBreakdown = getTaxBreakdownSummary(taxTotal)
 
@@ -59,10 +58,10 @@ export default function TaxBreakdownDisplay({
               </Group>
               <Stack gap={0} align="flex-end">
                 <Text size="sm" fw={500}>
-                  {formatCurrency(tax.taxAmount, currency)}
+                  {formatCurrency(tax.taxAmount)}
                 </Text>
                 <Text size="xs" c="dimmed">
-                  on {formatCurrency(tax.taxableAmount, currency)}
+                  on {formatCurrency(tax.taxableAmount)}
                 </Text>
               </Stack>
             </Group>
@@ -74,7 +73,7 @@ export default function TaxBreakdownDisplay({
         <Group justify="space-between">
           <Text fw={600}>Total Tax Amount:</Text>
           <Text fw={600} c="blue">
-            {formatCurrency(taxTotal.taxAmount, currency)}
+            {formatCurrency(taxTotal.taxAmount)}
           </Text>
         </Group>
       </Stack>

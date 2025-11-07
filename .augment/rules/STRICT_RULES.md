@@ -22,7 +22,7 @@ type: "always_apply"
 
 ### 3. Client vs Server Components
 
-* **DEFAULT**: All `page.tsx` and `layout.tsx` files are **Server Components**.
+* **DEFAULT**: All `page.tsx` and `layout.tsx` all files on src/app are the client components are outside the app its in src/components **Server Components**.
 * **ONLY** add `"use client"` when strictly required (`useState`, `useEffect`, `mutations` event handlers).
 * **MANDATORY NAMING**: If a component is client-only, append `.client.tsx` (example: `StatsCard.client.tsx`).
 * **FORBIDDEN**: Do not mix client and server logic in one file.

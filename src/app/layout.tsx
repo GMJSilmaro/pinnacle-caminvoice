@@ -86,13 +86,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-mantine-color-scheme="light">
+    <html lang="en" suppressHydrationWarning>
       <head>
-        <ColorSchemeScript />
+        <ColorSchemeScript defaultColorScheme="light" />
       </head>
-      <body
-        className="antialiased"
-      >
+      <body className="antialiased">
         <MantineProvider theme={theme}>
           <NavigationProgress />
           <Notifications position="top-right" zIndex={1000} />

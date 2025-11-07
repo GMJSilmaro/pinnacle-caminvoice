@@ -11,6 +11,7 @@ import {
   type SortingState,
   type ColumnFiltersState,
   type PaginationState,
+  type RowSelectionState,
 } from '@tanstack/react-table'
 import {
   Table,
@@ -23,6 +24,7 @@ import {
   Flex,
   Card,
   Stack,
+  Checkbox,
 } from '@mantine/core'
 import {
   IconChevronLeft,
@@ -41,6 +43,14 @@ interface DataTableProps<TData, TValue> {
   searchPlaceholder?: string
   onRowClick?: (row: TData) => void
   isLoading?: boolean
+  // Optional controlled pagination
+  pageIndex?: number
+  pageSize?: number
+  onPaginationChange?: (state: PaginationState) => void
+  // Row selection props
+  enableRowSelection?: boolean
+  getRowId?: (row: TData) => string
+  onSelectionChange?: (selectedIds: string[]) => void
 }
 
 export function DataTable<TData, TValue>({
@@ -49,13 +59,23 @@ export function DataTable<TData, TValue>({
   searchPlaceholder = "Search...",
   onRowClick,
   isLoading = false,
+  pageIndex,
+  pageSize,
+  onPaginationChange,
+  enableRowSelection = false,
+  getRowId,
+  onSelectionChange,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 10,
-  })
+  const [internalPagination, setInternalPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 })
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+
+  const isControlled = pageIndex !== undefined || pageSize !== undefined
+  const pagination: PaginationState = {
+    pageIndex: pageIndex ?? internalPagination.pageIndex,
+    pageSize: pageSize ?? internalPagination.pageSize,
+  }
   const [globalFilter, setGlobalFilter] = useState('')
 
   const table = useReactTable({
@@ -67,14 +87,42 @@ export function DataTable<TData, TValue>({
     getFilteredRowModel: getFilteredRowModel(),
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
-    onPaginationChange: setPagination,
+    onPaginationChange: (updater) => {
+      const next = typeof updater === 'function' ? (updater as any)(pagination) : updater
+      if (onPaginationChange) onPaginationChange(next)
+      if (!isControlled) setInternalPagination(next)
+    },
     onGlobalFilterChange: setGlobalFilter,
     globalFilterFn: 'includesString',
+    enableRowSelection: enableRowSelection,
+    getRowId: getRowId,
+    onRowSelectionChange: (updater) => {
+      const nextSelection = typeof updater === 'function' ? updater(rowSelection) : updater
+      setRowSelection(nextSelection)
+      
+      // Update parent when selection changes
+      if (onSelectionChange && getRowId) {
+        // Calculate selected IDs directly from data and selection state
+        // Use the data array directly since getRowId maps to the actual row IDs
+        const selectedIds = data
+          .map((row, index) => {
+            // Find the row ID - TanStack Table uses the row index as the key when getRowId is provided
+            const rowId = getRowId(row)
+            // Check if this row is selected in the nextSelection state
+            // The selection state uses the row ID as the key
+            return nextSelection[rowId] ? rowId : null
+          })
+          .filter((id): id is string => id !== null)
+        
+        onSelectionChange(selectedIds)
+      }
+    },
     state: {
       sorting,
       columnFilters,
       pagination,
       globalFilter,
+      rowSelection,
     },
   })
 
@@ -116,6 +164,16 @@ export function DataTable<TData, TValue>({
           <Table.Thead>
             {table.getHeaderGroups().map((headerGroup) => (
               <Table.Tr key={headerGroup.id}>
+                {enableRowSelection && (
+                  <Table.Th style={{ width: 40 }}>
+                    <Checkbox
+                      checked={table.getIsAllPageRowsSelected()}
+                      indeterminate={table.getIsSomePageRowsSelected()}
+                      onChange={table.getToggleAllPageRowsSelectedHandler()}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </Table.Th>
+                )}
                 {headerGroup.headers.map((header) => (
                   <Table.Th key={header.id}>
                     {header.isPlaceholder ? null : (
@@ -153,7 +211,7 @@ export function DataTable<TData, TValue>({
           <Table.Tbody>
             {isLoading ? (
               <Table.Tr>
-                <Table.Td colSpan={columns.length}>
+                <Table.Td colSpan={columns.length + (enableRowSelection ? 1 : 0)}>
                   <Text ta="center" py="xl" c="dimmed">
                     Loading...
                   </Text>
@@ -168,6 +226,14 @@ export function DataTable<TData, TValue>({
                   }}
                   onClick={() => onRowClick?.(row.original)}
                 >
+                  {enableRowSelection && (
+                    <Table.Td onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={row.getIsSelected()}
+                        onChange={row.getToggleSelectedHandler()}
+                      />
+                    </Table.Td>
+                  )}
                   {row.getVisibleCells().map((cell) => (
                     <Table.Td key={cell.id}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -177,7 +243,7 @@ export function DataTable<TData, TValue>({
               ))
             ) : (
               <Table.Tr>
-                <Table.Td colSpan={columns.length}>
+                <Table.Td colSpan={columns.length + (enableRowSelection ? 1 : 0)}>
                   <Text ta="center" py="xl" c="dimmed">
                     No results found.
                   </Text>

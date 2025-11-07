@@ -1,8 +1,8 @@
-import { Box } from "@mantine/core"
+import { Box } from "@mantine/core";
 
 interface Props {
-  size?: number
-  color?: string
+  size?: number;
+  color?: string;
 }
 
 export function MantineLogoRounded({ size = 24, color = "blue" }: Props) {
@@ -21,7 +21,7 @@ export function MantineLogoRounded({ size = 24, color = "blue" }: Props) {
         fontWeight: 700,
       }}
     >
-      M
+      P
     </Box>
-  )
+  );
 }

@@ -14,7 +14,7 @@ interface Props {
 
 export default function App({ children }: Props) {
   const [opened, { toggle }] = useDisclosure()
-  const { isNavbarCollapse } = useStore()
+  const isNavbarCollapse = useStore((s) => s.isNavbarCollapse);
 
   // Initialize navigation progress
   useNavigationProgress()
@@ -30,7 +30,7 @@ export default function App({ children }: Props) {
           main: classes.main,
         }}
         navbar={{
-          width: isNavbarCollapse ? 60 : 260,
+          width: isNavbarCollapse ? 50 : 260,
           breakpoint: "md",
           collapsed: { mobile: !opened },
         }}

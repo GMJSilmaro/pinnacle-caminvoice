@@ -38,15 +38,20 @@ export const useAuth = (): UseAuthReturn => {
       const response = await fetch('/api/auth/session', {
         credentials: 'include',
       })
-      
+
       if (response.ok) {
-        const sessionData = await response.json()
-        if (sessionData.user) {
-          setUser(sessionData.user)
-          setSession(sessionData)
+        // Avoid JSON.parse on empty bodies (e.g., 204 No Content)
+        const text = await response.text()
+        if (text) {
+          const sessionData = JSON.parse(text)
+          if (sessionData?.user) {
+            setUser(sessionData.user)
+            setSession(sessionData)
+          }
         }
       }
     } catch (error) {
+      // Keep silent in UI; log for debugging only
       console.error('Auth check failed:', error)
     } finally {
       setLoading(false)

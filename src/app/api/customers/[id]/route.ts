@@ -9,10 +9,11 @@ import {
 } from '../../../../lib/tenant-middleware'
 import { logAudit } from '../../../../lib/audit'
 
-export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   try {
     const customer = await prisma.customer.findUnique({
-      where: { id: params.id },
+      where: { id },
       select: {
         id: true,
         tenantId: true,
@@ -28,7 +29,10 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
         postalCode: true,
         country: true,
         status: true,
+        camInvoiceEndpointId: true,
         createdAt: true,
+        camInvoiceStatus: true,
+
         updatedAt: true,
       },
     })
@@ -37,14 +41,29 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 })
     }
 
-    return NextResponse.json({ success: true, customer })
+    const [totalInvoices, sumAll, sumOutstanding] = await Promise.all([
+      prisma.invoice.count({ where: { customerId: id } }),
+      prisma.invoice.aggregate({ _sum: { totalAmount: true }, where: { customerId: id } }),
+      prisma.invoice.aggregate({ _sum: { totalAmount: true }, where: { customerId: id, status: { in: ['SUBMITTED', 'ACCEPTED'] } } }),
+    ])
+
+    return NextResponse.json({
+      success: true,
+      customer,
+      aggregates: {
+        totalInvoices,
+        totalRevenue: sumAll._sum.totalAmount ?? 0,
+        outstanding: sumOutstanding._sum.totalAmount ?? 0,
+      },
+    })
   } catch (error) {
     console.error('Customer GET error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   try {
     const user = await verifyTenantAdminRole(request)
     if (!user) {
@@ -53,7 +72,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
 
     const existing = await prisma.customer.findUnique({
-      where: { id: params.id },
+      where: { id },
     })
 
     if (!existing) {
@@ -70,7 +89,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const body = await request.json()
 
     const updated = await prisma.customer.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         name: body.name ?? undefined,
         businessName: body.businessName ?? undefined,
@@ -95,6 +114,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         phone: true,
         address: true,
         city: true,
+        postalCode: true,
+        camInvoiceStatus: true,
+
         country: true,
         status: true,
         updatedAt: true,
@@ -118,7 +140,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   try {
     const user = await verifyTenantAdminRole(request)
     if (!user) {
@@ -126,7 +149,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: err.error }, { status: err.status })
     }
 
-    const existing = await prisma.customer.findUnique({ where: { id: params.id } })
+    const existing = await prisma.customer.findUnique({ where: { id } })
     if (!existing) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 })
     }
